@@ -199,115 +199,18 @@ function CommunityMap({ selectedId, communities, dirStyle, onSelect }) {
 
 // ─── PHOTO GALLERY ───────────────────────────────────────────────────────────
 function PhotoGallery({ com }) {
-  const [photos, setPhotos] = React.useState([]);
-  const [status, setStatus] = React.useState("loading");
-
-  React.useEffect(() => {
-    if (!com?.wikiSlug) { setStatus("empty"); return; }
-    setStatus("loading");
-    setPhotos([]);
-
-    const controller = new AbortController();
-    const apiUrl = "https://en.wikipedia.org/api/rest_v1/page/media-list/"
-      + encodeURIComponent(com.wikiSlug);
-
-    fetch(apiUrl, {
-      signal: controller.signal,
-      headers: { "Api-User-Agent": "WI-Relocation-Tool/1.0" }
-    })
-      .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(data => {
-        // Filename patterns that indicate non-place content
-        const BAD_FILE = /flag|seal|logo|locator|blank|icon|route|sign|coa_|coat|highlighted|location|unincorporated|incorporated|county_wi|wikip|portrait|headshot|politician|alderman|supervisor|council|senator|governor|official|mugshot|arrest/i;
-
-        // Alt text / caption patterns that suggest a photo is of a person
-        const PERSON_ALT = /\bportrait\b|\bheadshot\b|\bphoto of\b|\bpicture of\b|\bmayor\b|\bofficial\b|\bpolitician\b|\bborn\b|\baged\b|\bc\.\s*\d{4}\b|\(\d{4}[–-]\d{4}\)/i;
-
-        const items = (data.items || []).filter(item => {
-          if (!item.showInGallery) return false;
-          if (item.type !== "image") return false;
-          if (!item.srcset?.length) return false;
-
-          const title   = item.title || "";
-          const altText = (item.alt || "").toLowerCase();
-          const capText = (item.caption?.text || item.caption || "").toLowerCase();
-
-          // Reject SVG (always maps/diagrams)
-          if (/[.]svg$/i.test(title)) return false;
-          if ((item.srcset[0]?.src || "").includes(".svg")) return false;
-
-          // Reject by filename keyword
-          if (BAD_FILE.test(title)) return false;
-
-          // Reject if alt or caption signals a person photo
-          if (PERSON_ALT.test(altText) || PERSON_ALT.test(capText)) return false;
-
-          // Reject if alt text looks like a person's name
-          // (two or more capitalised words with no place-like terms)
-          const PLACE_WORDS = /lake|river|park|trail|road|street|ave|bridge|bay|harbor|marina|church|hall|building|house|home|neighborhood|aerial|panorama|downtown|historic|district|lighthouse|waterfall|falls|creek|mill|farm|field|forest|wood|garden|museum|library|center|centre|school|stadium|arena|pool|beach|shore|coast|island|dam|tower|plaza|square|village|city|town|county|state|national|federal/i;
-          const looksLikeName = /^[A-Z][a-z]+ [A-Z][a-z]+( [A-Z][a-z]+)?$/.test((item.alt || "").trim());
-          if (looksLikeName && !PLACE_WORDS.test(item.alt || "")) return false;
-
-          return true;
-        });
-        const urls = items
-          .map(item => {
-            const src = item.srcset.find(s => s.scale === "1.5x") || item.srcset[item.srcset.length - 1];
-            return src ? "https:" + src.src : null;
-          })
-          .filter(Boolean)
-          .slice(0, 6);
-        setPhotos(urls);
-        setStatus(urls.length ? "ok" : "empty");
-      })
-      .catch(err => { if (err && err.name !== "AbortError") setStatus("empty"); });
-
-    return () => controller.abort();
-  }, [com?.id]);
-
   const googleLink = "https://www.google.com/search?q="
-    + encodeURIComponent((com?.name || "") + " Wisconsin") + "&tbm=isch";
-  const linkStyle = { fontSize: 12, fontWeight: 600, color: "#3B82F6", textDecoration: "none" };
-
-  if (status === "loading") return (
-    <div style={{ padding: "20px 12px", textAlign: "center" }}>
-      <div style={{ display: "inline-flex", gap: 6, alignItems: "center", color: "#9CA3AF", fontSize: 12 }}>
-        <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid #D1D5DB", borderTopColor: "#6B7280", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-        Loading photos...
-      </div>
-    </div>
-  );
-
-  if (status === "empty") return (
+    + encodeURIComponent(com.name + " Wisconsin") + "&tbm=isch";
+  return (
     <div style={{ padding: "10px 14px" }}>
-      <a href={googleLink} target="_blank" rel="noopener noreferrer" style={linkStyle}>
-        Images of {com?.name} &rarr;
+      <a href={googleLink} target="_blank" rel="noopener noreferrer"
+        style={{ fontSize: 12, fontWeight: 600, color: "#3B82F6", textDecoration: "none" }}>
+        Images of {com.name} &rarr;
       </a>
     </div>
   );
-
-  const cols = photos.length === 3 ? 3 : 2;
-
-  return (
-    <div style={{ padding: 6 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(" + cols + ", 1fr)", gap: 5 }}>
-        {photos.map((src, i) => (
-          <div key={i} style={{ overflow: "hidden", borderRadius: 5, background: "#F0F4F8", aspectRatio: "4/3" }}>
-            <img src={src} alt={com.name} loading="lazy"
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-              onError={e => { e.target.parentElement.style.display = "none"; }}
-            />
-          </div>
-        ))}
-      </div>
-      <div style={{ padding: "6px 4px 2px" }}>
-        <a href={googleLink} target="_blank" rel="noopener noreferrer" style={linkStyle}>
-          Images of {com?.name} &rarr;
-        </a>
-      </div>
-    </div>
-  );
 }
+
 
 // ─── COMMUNITY DATA ──────────────────────────────────────────────────────────
 // TO ADD A NEW COMMUNITY: copy any entry below, assign a unique id, fill in
