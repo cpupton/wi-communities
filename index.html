@@ -217,16 +217,37 @@ function PhotoGallery({ com }) {
     })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(data => {
-        const BAD = /flag|seal|logo|locator|blank|icon|route|sign|coa_|coat|highlighted|location|unincorporated|incorporated|county_wi|wikip/i;
+        // Filename patterns that indicate non-place content
+        const BAD_FILE = /flag|seal|logo|locator|blank|icon|route|sign|coa_|coat|highlighted|location|unincorporated|incorporated|county_wi|wikip|portrait|headshot|politician|alderman|supervisor|council|senator|governor|official|mugshot|arrest/i;
+
+        // Alt text / caption patterns that suggest a photo is of a person
+        const PERSON_ALT = /\bportrait\b|\bheadshot\b|\bphoto of\b|\bpicture of\b|\bmayor\b|\bofficial\b|\bpolitician\b|\bborn\b|\baged\b|\bc\.\s*\d{4}\b|\(\d{4}[–-]\d{4}\)/i;
+
         const items = (data.items || []).filter(item => {
           if (!item.showInGallery) return false;
           if (item.type !== "image") return false;
           if (!item.srcset?.length) return false;
-          const title = item.title || "";
-          if (BAD.test(title)) return false;
+
+          const title   = item.title || "";
+          const altText = (item.alt || "").toLowerCase();
+          const capText = (item.caption?.text || item.caption || "").toLowerCase();
+
+          // Reject SVG (always maps/diagrams)
           if (/[.]svg$/i.test(title)) return false;
-          const src = (item.srcset[0]?.src || "");
-          if (src.includes(".svg")) return false;
+          if ((item.srcset[0]?.src || "").includes(".svg")) return false;
+
+          // Reject by filename keyword
+          if (BAD_FILE.test(title)) return false;
+
+          // Reject if alt or caption signals a person photo
+          if (PERSON_ALT.test(altText) || PERSON_ALT.test(capText)) return false;
+
+          // Reject if alt text looks like a person's name
+          // (two or more capitalised words with no place-like terms)
+          const PLACE_WORDS = /lake|river|park|trail|road|street|ave|bridge|bay|harbor|marina|church|hall|building|house|home|neighborhood|aerial|panorama|downtown|historic|district|lighthouse|waterfall|falls|creek|mill|farm|field|forest|wood|garden|museum|library|center|centre|school|stadium|arena|pool|beach|shore|coast|island|dam|tower|plaza|square|village|city|town|county|state|national|federal/i;
+          const looksLikeName = /^[A-Z][a-z]+ [A-Z][a-z]+( [A-Z][a-z]+)?$/.test((item.alt || "").trim());
+          if (looksLikeName && !PLACE_WORDS.test(item.alt || "")) return false;
+
           return true;
         });
         const urls = items
