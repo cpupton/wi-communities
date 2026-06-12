@@ -242,7 +242,57 @@ const COMMUNITIES = [
   { id:"falls", lat:43.1789, lng:-88.1175, wikiSlug:"Menomonee_Falls,_Wisconsin",  name:"Menomonee Falls",  sub:"Waukesha Co. · 18 mi S",    dir:"↓ S",  miles:18, commute:22, rank:10,    tabColor:{bg:"#0F766E",fg:"#CCFBF1"}, zillowUrl:"https://www.realtor.com/realestateandhomes-search/Menomonee-Falls_WI/",pop:"39,539",  area:"33.3 sq mi", density:1223, medianAge:42.4, white:82.4,hispanic:4.8,asian:5.6,black:3.7,  income:100238, perCapita:52684, poverty:3.4,  homeValue:402286, ownership:82, rent:1391,  col:98.3,  crimeTotal:6,  violent:71,  property:908,  crimeVsNatl:"Violent –80% vs natl · top 100 safest", schoolDistrict:"Menomonee Falls SD",      schoolGrade:"A+",    schoolNote:"Top-rated · Milwaukee metro",          character:"Largest suburb in the radius. Excellent amenities, top schools, very safe. Suburban density is about double Marshall Township's — well-resourced but lacking the wooded rural character.",      recBullets:["Menomonee River Parkway trail system","Bugline Trail (to Germantown)","Milwaukee County parks nearby","Strong retail & restaurant corridor","20 min to Milwaukee sports & entertainment","Kettle Moraine (25 min W)"] },
 ];
 
-const MARSHALL = { density:662, income:165099, perCapita:87227, poverty:3.5, homeValue:575000, ownership:90, crimeTotal:1, violent:10, property:100 };
+// ─── PA BASELINES ─────────────────────────────────────────────────────────────
+const BASELINES = {
+  marshall: {
+    id: "marshall", label: "Marshall Twp", sublabel: "Allegheny Co., PA",
+    pop: "10,226", area: "15.4 sq mi", densityD: "662 / sq mi", density: 662, medianAge: "43.1 yrs",
+    whiteD: "75.2%", hispanicD: "~2%", asianD: "20.4%", blackD: "<2%",
+    incomeD: "$165,099", income: 165099, perCapitaD: "$87,227", perCapita: 87227,
+    povertyD: "3.5%", poverty: 3.5, homeValueD: "$575,000", homeValue: 575000,
+    ownershipD: "~90%", ownership: 90, rentD: "~$1,800 est.", colD: "~110 (est.)",
+    groceryD: "~Avg", utilitiesD: "+20% vs avg", utilBillD: "~$270", gasD: "~$3.41/gal",
+    healthcareD: "–5% (PA)", transportD: "+11% (PA)", milkD: "~$4.67",
+    janD: "38°F / 21°F", julD: "84°F / 63°F", snowD: '~27"', rainD: '~41"',
+    sunnyD: "~160", avgTempD: "~52°F",
+    crimeD: "~1 / 1K (very low)", crimeTotal: 1, violentD: "~10 / 100K", violent: 10,
+    propertyD: "~100 / 100K", property: 100, crimeCtxD: "Very low — affluent township",
+    schoolDistrictD: "North Allegheny SD", schoolGradeD: "10/10 ✦", schoolNoteD: "#1 in PA region",
+  },
+  cranberry: {
+    id: "cranberry", label: "Cranberry Twp", sublabel: "Butler Co., PA",
+    pop: "34,094", area: "~28 sq mi", densityD: "1,231 / sq mi", density: 1231, medianAge: "40.1 yrs",
+    whiteD: "88.9%", hispanicD: "~1.5%", asianD: "3.7%", blackD: "1.2%",
+    incomeD: "$125,126", income: 125126, perCapitaD: "$63,809", perCapita: 63809,
+    povertyD: "4.4%", poverty: 4.4, homeValueD: "$420,000", homeValue: 420000,
+    ownershipD: "~87%", ownership: 87, rentD: "~$1,500 est.", colD: "~104",
+    groceryD: "–2% vs avg", utilitiesD: "+18% vs avg", utilBillD: "~$255", gasD: "~$3.38/gal",
+    healthcareD: "–5% (PA)", transportD: "+10% (PA)", milkD: "~$4.60",
+    janD: "36°F / 18°F", julD: "83°F / 62°F", snowD: '~35–40"', rainD: '~39"',
+    sunnyD: "~155", avgTempD: "~51°F",
+    crimeD: "~3 / 1K (very low)", crimeTotal: 3, violentD: "~15 / 100K", violent: 15,
+    propertyD: "~280 / 100K", property: 280, crimeCtxD: "Very low — suburban Butler Co.",
+    schoolDistrictD: "Seneca Valley SD", schoolGradeD: "A", schoolNoteD: "Top-ranked in PA · Butler Co.",
+  },
+  mars: {
+    id: "mars", label: "Mars / Adams Twp", sublabel: "Butler Co., PA",
+    pop: "~19,257 (ZIP area)", area: "~22 sq mi", densityD: "~600 / sq mi", density: 600, medianAge: "~42 yrs",
+    whiteD: "~91%", hispanicD: "~2.5%", asianD: "~5%", blackD: "~0.5%",
+    incomeD: "$151,560", income: 151560, perCapitaD: "~$85,000 est.", perCapita: 85000,
+    povertyD: "~2.5%", poverty: 2.5, homeValueD: "$481,300", homeValue: 481300,
+    ownershipD: "~92%", ownership: 92, rentD: "~$1,700 est.", colD: "~108",
+    groceryD: "–2% vs avg", utilitiesD: "+18% vs avg", utilBillD: "~$255", gasD: "~$3.38/gal",
+    healthcareD: "–5% (PA)", transportD: "+10% (PA)", milkD: "~$4.60",
+    janD: "35°F / 17°F", julD: "83°F / 62°F", snowD: '~37"', rainD: '~38"',
+    sunnyD: "~155", avgTempD: "~51°F",
+    crimeD: "~2 / 1K (very low)", crimeTotal: 2, violentD: "~8 / 100K", violent: 8,
+    propertyD: "~150 / 100K", property: 150, crimeCtxD: "Very low — affluent Butler Co.",
+    schoolDistrictD: "Mars Area SD", schoolGradeD: "A", schoolNoteD: "Highly rated · Butler Co.",
+  },
+};
+
+// MARSHALL kept for any legacy refs
+const MARSHALL = BASELINES.marshall;
 
 // ─── PITTSBURGH vs MILWAUKEE DATA ────────────────────────────────────────────
 const PGH = {
@@ -495,6 +545,30 @@ function CityComparison() {
   );
 }
 
+// ─── BASELINE TOGGLE ─────────────────────────────────────────────────────────
+function BaselineToggle({ current, onChange }) {
+  const opts = [
+    { id: "marshall",  label: "Marshall Twp" },
+    { id: "cranberry", label: "Cranberry Twp" },
+    { id: "mars",      label: "Mars / Adams Twp" },
+  ];
+  return (
+    <div style={{ background: "#0F172A", padding: "5px 10px", display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid rgba(255,255,255,0.07)", overflowX: "auto" }}>
+      <span style={{ fontSize: 9, color: "#64748B", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Baseline:</span>
+      {opts.map(opt => (
+        <button key={opt.id} onClick={() => onChange(opt.id)} style={{
+          border: "none", borderRadius: 14, cursor: "pointer",
+          padding: "3px 10px", whiteSpace: "nowrap", flexShrink: 0,
+          background: current === opt.id ? "#3B82F6" : "rgba(255,255,255,0.07)",
+          color: current === opt.id ? "white" : "#94A3B8",
+          fontSize: 11, fontWeight: current === opt.id ? 700 : 500,
+          transition: "all 0.15s",
+        }}>{opt.label}</button>
+      ))}
+    </div>
+  );
+}
+
 // ─── MODE TOGGLE ─────────────────────────────────────────────────────────────
 function ModeToggle({ mode, onChange }) {
   const opts = [
@@ -525,6 +599,7 @@ function ModeToggle({ mode, onChange }) {
 function App() {
   const [sel,      setSel    ] = useState(0);
   const [mode,     setMode   ] = useState("community");
+  const [baselineKey, setBaselineKey] = useState("marshall");
   const [scrolled, setScrolled] = useState(false);
   const stickyRef = useRef(null);
 
@@ -549,10 +624,11 @@ function App() {
     const t = setTimeout(update, 50);
     window.addEventListener('resize', update);
     return () => { clearTimeout(t); window.removeEventListener('resize', update); };
-  }, [mode, sel]);
+  }, [mode, sel, baselineKey]);
 
   const com = COMMUNITIES[sel];
   const ds  = com.tabColor;
+  const base = BASELINES[baselineKey];
 
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#F1F5F9", padding: "16px 12px" }}>
@@ -575,13 +651,19 @@ function App() {
           {/* Mode toggle */}
           <ModeToggle mode={mode} onChange={setMode} />
 
+          {/* Baseline toggle — community mode only */}
+          {mode === "community" && (
+            <BaselineToggle current={baselineKey} onChange={setBaselineKey} />
+          )}
+
           {/* Column headers */}
           {mode === "community" ? (
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", background: "#111827", overflow: "hidden" }}>
               <div style={{ padding: "7px 12px", color: "#9CA3AF", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>Category</div>
               <div style={{ padding: "7px 10px", background: PA_BG }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: PA_TEXT, letterSpacing: "0.06em" }}>BASELINE</div>
-                <div style={{ fontSize: 11, fontWeight: 800, color: "white" }}>Marshall Twp PA</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{base.label}</div>
+              <div style={{ fontSize: 9, color: PA_TEXT, opacity: 0.65, whiteSpace: "nowrap" }}>{base.sublabel}</div>
               </div>
               <div style={{ padding: "7px 10px", background: ds.bg }}>
                 <div style={{ fontSize: 9, fontWeight: 700, color: ds.fg, opacity: 0.7, letterSpacing: "0.06em" }}>
@@ -675,56 +757,56 @@ function App() {
 
                         <div style={{ borderRadius: "0 0 8px 8px", overflow: "clip", border: `1px solid ${BORDER}`, borderTop: "none", background: "white" }}>
               <SHead label="Population & Demographics" />
-              <RowM label="Population"   valMar="10,226"     valCom={com.pop} />
-              <RowM label="Land Area"    valMar="15.4 sq mi" valCom={com.area} />
-              <RowM label="Pop. Density" sub="lower = more rural" valMar="662 / sq mi" valCom={com.density.toLocaleString() + " / sq mi"} numC={com.density} numM={MARSHALL.density} hib={false} />
-              <RowM label="Median Age"   valMar="43.1 yrs"   valCom={com.medianAge + " yrs"} />
-              <RowM label="% White"      valMar="75.2%"      valCom={com.white + "%"} />
-              <RowM label="% Hispanic"   valMar="~2%"        valCom={com.hispanic + "%"} />
-              <RowM label="% Asian"      valMar="20.4%"      valCom={com.asian + "%"} />
-              <RowM label="% Black"      valMar="<2%"        valCom={com.black + "%"} />
+              <RowM label="Population"   valMar={base.pop}     valCom={com.pop} />
+              <RowM label="Land Area"    valMar={base.area} valCom={com.area} />
+              <RowM label="Pop. Density" sub="lower = more rural" valMar={base.densityD} valCom={com.density.toLocaleString() + " / sq mi"} numC={com.density} numM={base.density} hib={false} />
+              <RowM label="Median Age"   valMar={base.medianAge}   valCom={com.medianAge + " yrs"} />
+              <RowM label="% White"      valMar={base.whiteD}      valCom={com.white + "%"} />
+              <RowM label="% Hispanic"   valMar={base.hispanicD}        valCom={com.hispanic + "%"} />
+              <RowM label="% Asian"      valMar={base.asianD}      valCom={com.asian + "%"} />
+              <RowM label="% Black"      valMar={base.blackD}        valCom={com.black + "%"} />
 
               <SHead label="Income & Economy" />
-              <RowM label="Median HH Income"  valMar="$165,099" valCom={"$" + com.income.toLocaleString()}    numC={com.income}    numM={MARSHALL.income}    hib={true} />
-              <RowM label="Per Capita Income" valMar="$87,227"  valCom={"$" + com.perCapita.toLocaleString()} numC={com.perCapita} numM={MARSHALL.perCapita} hib={true} />
-              <RowM label="Poverty Rate" sub="lower = better" valMar="3.5%" valCom={com.poverty + "%"} numC={com.poverty} numM={MARSHALL.poverty} hib={false} />
+              <RowM label="Median HH Income"  valMar={base.incomeD} valCom={"$" + com.income.toLocaleString()}    numC={com.income}    numM={base.income}    hib={true} />
+              <RowM label="Per Capita Income" valMar={base.perCapitaD}  valCom={"$" + com.perCapita.toLocaleString()} numC={com.perCapita} numM={base.perCapita} hib={true} />
+              <RowM label="Poverty Rate" sub="lower = better" valMar={base.povertyD} valCom={com.poverty + "%"} numC={com.poverty} numM={base.poverty} hib={false} />
 
               <SHead label="Housing" />
-              <RowM label="Median Home Value" valMar="$575,000" valCom={"$" + com.homeValue.toLocaleString()} numC={com.homeValue} numM={MARSHALL.homeValue} hib={true} />
-              <RowM label="Homeownership"     valMar="~90%"     valCom={com.ownership + "%"} numC={com.ownership} numM={MARSHALL.ownership} hib={true} />
-              <RowM label="Median Rent"       valMar="~$1,800 est." valCom={"$" + com.rent.toLocaleString() + "/mo"} />
-              <RowM label="COL Index" sub="U.S. avg = 100"  valMar="~110 (est.)" valCom={String(com.col)} />
+              <RowM label="Median Home Value" valMar={base.homeValueD} valCom={"$" + com.homeValue.toLocaleString()} numC={com.homeValue} numM={base.homeValue} hib={true} />
+              <RowM label="Homeownership"     valMar={base.ownershipD}     valCom={com.ownership + "%"} numC={com.ownership} numM={base.ownership} hib={true} />
+              <RowM label="Median Rent"       valMar={base.rentD} valCom={"$" + com.rent.toLocaleString() + "/mo"} />
+              <RowM label="COL Index" sub="U.S. avg = 100"  valMar={base.colD} valCom={String(com.col)} />
 
               <SHead label="Cost of Living" />
-              <RowM label="Groceries vs. Avg"    valMar="~Avg"      valCom="+9% vs natl"  note="WI state avg; same across all 8" />
-              <RowM label="Utilities vs. Avg"    valMar="+20% (PA)" valCom="–6 to –7%"   note="WI utilities notably cheaper" />
-              <RowM label="Monthly Utility Bill" valMar="~$270"     valCom="~$195–210" />
-              <RowM label="Gas Price"            valMar="~$3.41"    valCom="~$3.15/gal" />
-              <RowM label="Healthcare vs. Avg"   valMar="–5% (PA)"  valCom="~–1% (WI)" />
-              <RowM label="Transportation"       valMar="+11% (PA)" valCom="+1–2% (WI)" />
-              <RowM label="Gallon of Milk"       valMar="~$4.67"    valCom="~$4.10" note="WI is dairy country" />
+              <RowM label="Groceries vs. Avg"    valMar={base.groceryD}      valCom="+9% vs natl"  note="WI state avg; same across all 8" />
+              <RowM label="Utilities vs. Avg"    valMar={base.utilitiesD} valCom="–6 to –7%"   note="WI utilities notably cheaper" />
+              <RowM label="Monthly Utility Bill" valMar={base.utilBillD}     valCom="~$195–210" />
+              <RowM label="Gas Price"            valMar={base.gasD}    valCom="~$3.15/gal" />
+              <RowM label="Healthcare vs. Avg"   valMar={base.healthcareD}  valCom="~–1% (WI)" />
+              <RowM label="Transportation"       valMar={base.transportD} valCom="+1–2% (WI)" />
+              <RowM label="Gallon of Milk"       valMar={base.milkD}    valCom="~$4.10" note="WI is dairy country" />
 
               <SHead label="Climate" />
-              <RowM label="Jan High / Low"    valMar="38°F / 21°F" valCom="26°F / 13°F" />
-              <RowM label="July High / Low"   valMar="84°F / 63°F" valCom="82°F / 62°F" />
-              <RowM label="Annual Snowfall"   valMar='~27"'         valCom='45–50"' note="More snow than Marshall Twp" />
-              <RowM label="Annual Rainfall"   valMar='~41"'         valCom='32–35"' />
-              <RowM label="Sunny Days / Year" valMar="~160"         valCom="~185–190" note="More sun than Pittsburgh area" />
-              <RowM label="Annual Avg Temp"   valMar="~52°F"        valCom="~49°F" />
+              <RowM label="Jan High / Low"    valMar={base.janD} valCom="26°F / 13°F" />
+              <RowM label="July High / Low"   valMar={base.julD} valCom="82°F / 62°F" />
+              <RowM label="Annual Snowfall"   valMar={base.snowD}         valCom='45–50"' note="More snow than Marshall Twp" />
+              <RowM label="Annual Rainfall"   valMar={base.rainD}         valCom='32–35"' />
+              <RowM label="Sunny Days / Year" valMar={base.sunnyD}         valCom="~185–190" note="More sun than Pittsburgh area" />
+              <RowM label="Annual Avg Temp"   valMar={base.avgTempD}        valCom="~49°F" />
               <RowM label="Climate Type"      valMar="Humid Continental" valCom="Humid Continental" />
               {com.id === "kohler" && <RowM label="Lake Michigan Effect" valMar="n/a" valCom="Slight temp moderation near lake" />}
 
               <SHead label="Crime (2024 FBI UCR)" />
-              <RowM label="Overall Crime Rate" sub="per 1,000" valMar="~1 / 1K (very low)" valCom={com.crimeTotal + " / 1K"} numC={com.crimeTotal} numM={MARSHALL.crimeTotal} hib={false} />
-              <RowM label="Violent / 100K"     valMar="~10 / 100K"  valCom={com.violent + " / 100K"}  numC={com.violent + 1} numM={MARSHALL.violent + 1} hib={false} />
-              <RowM label="Property / 100K"    valMar="~100 / 100K" valCom={com.property + " / 100K"} numC={com.property}    numM={MARSHALL.property}    hib={false} />
-              <RowM label="Context"            valMar="Very low — affluent township" valCom={com.crimeVsNatl} />
+              <RowM label="Overall Crime Rate" sub="per 1,000" valMar={base.crimeD} valCom={com.crimeTotal + " / 1K"} numC={com.crimeTotal} numM={base.crimeTotal} hib={false} />
+              <RowM label="Violent / 100K"     valMar={base.violentD}  valCom={com.violent + " / 100K"}  numC={com.violent + 1} numM={base.violent + 1} hib={false} />
+              <RowM label="Property / 100K"    valMar={base.propertyD} valCom={com.property + " / 100K"} numC={com.property}    numM={base.property}    hib={false} />
+              <RowM label="Context"            valMar={base.crimeCtxD} valCom={com.crimeVsNatl} />
               <RowM label="WI State Avg (ref)" valMar="n/a" valCom="Violent: 279/100K · Property: 1,154/100K" />
 
               <SHead label="Schools" />
-              <RowM label="School District" valMar="North Allegheny SD" valCom={com.schoolDistrict} />
-              <RowM label="Grade / Rating"  valMar="10/10 ✦"           valCom={com.schoolGrade} />
-              <RowM label="Ranking / Note"  valMar="#1 in PA region"   valCom={com.schoolNote} />
+              <RowM label="School District" valMar={base.schoolDistrictD} valCom={com.schoolDistrict} />
+              <RowM label="Grade / Rating"  valMar={base.schoolGradeD}           valCom={com.schoolGrade} />
+              <RowM label="Ranking / Note"  valMar={base.schoolNoteD}   valCom={com.schoolNote} />
 
               <SHead label="Recreation & Outdoors" />
               <BulletRow title="Community Highlights" items={com.recBullets} />
