@@ -258,6 +258,20 @@ const BASELINES = {
     crimeD: "~1 / 1K (very low)", crimeTotal: 1, violentD: "~10 / 100K", violent: 10,
     propertyD: "~100 / 100K", property: 100, crimeCtxD: "Very low — affluent township",
     schoolDistrictD: "North Allegheny SD", schoolGradeD: "10/10 ✦", schoolNoteD: "#1 in PA region",
+    // Natural Hazards
+    tornadoAvgD: "~0.1–0.8 / yr (Allegheny Co.)", tornadoIntensityD: "98% EF0–EF1 · rare EF2+",
+    tornadoRecordD: "F4 · Allegheny Co. · 1944 · 17 deaths · 200 injuries",
+    tornadoNoteD: "EF-2 Findlay Twp (Allegheny Co.) May 8, 2024 · 130 mph",
+    blizzardFreqD: "1–2 significant events / decade", blizzardRecordD: "Blizzard of Jan 1996 · 24.7″ Pittsburgh",
+    snowRecord24D: "20.8″ Pittsburgh · Jan 1945",
+    iceStormD: "1–3 events / year",
+    severeStormDaysD: "~35–45 days / year",
+    floodRiskD: "Low–Moderate · Allegheny River valley flooding in Pittsburgh",
+    floodRecordD: "1936 St. Patrick\'s Day Flood · historic Pittsburgh (46 ft above flood stage)",
+    recordLowD: "–22°F · Pittsburgh · Jan 19, 1994",
+    polarVortexD: "Low–Moderate exposure · milder than WI",
+    earthquakeD: "Very low · occasional minor tremors felt from distant quakes",
+    otherHazardsD: "Occasional derecho events · ice storms can cause multi-day power outages",
   },
   cranberry: {
     id: "cranberry", label: "Cranberry Twp", sublabel: "Butler Co., PA",
@@ -273,6 +287,20 @@ const BASELINES = {
     crimeD: "~3 / 1K (very low)", crimeTotal: 3, violentD: "~15 / 100K", violent: 15,
     propertyD: "~280 / 100K", property: 280, crimeCtxD: "Very low — suburban Butler Co.",
     schoolDistrictD: "Seneca Valley SD", schoolGradeD: "A", schoolNoteD: "Top-ranked in PA · Butler Co.",
+    // Natural Hazards
+    tornadoAvgD: "~0.2–0.8 / yr (Butler Co.)", tornadoIntensityD: "Mostly EF0–EF1 · rare EF2+",
+    tornadoRecordD: "F3 · Butler city · 1985 · 6 deaths · 80 injuries",
+    tornadoNoteD: "EF-0 confirmed Cranberry/Seven Fields · Butler-Allegheny border · Jun 22, 2021",
+    blizzardFreqD: "1–2 significant events / decade", blizzardRecordD: "Blizzard of Jan 1996 · 24.7″ Pittsburgh area",
+    snowRecord24D: "~22″ Butler Co. estimate · major events 1978 & 1996",
+    iceStormD: "1–3 events / year",
+    severeStormDaysD: "~35–45 days / year",
+    floodRiskD: "Low–Moderate · stream corridor flooding in parts of township",
+    floodRecordD: "No major historic floods locally · broader 1936 St. Patrick\'s Day Flood (Pittsburgh)",
+    recordLowD: "~–18°F to –22°F (Butler Co. range)",
+    polarVortexD: "Low–Moderate · milder than WI",
+    earthquakeD: "Very low · occasional minor tremors",
+    otherHazardsD: "Ice storms can cause multi-day power outages · occasional derecho wind events",
   },
   mars: {
     id: "mars", label: "Mars / Adams Twp", sublabel: "Butler Co., PA",
@@ -288,6 +316,20 @@ const BASELINES = {
     crimeD: "~2 / 1K (very low)", crimeTotal: 2, violentD: "~8 / 100K", violent: 8,
     propertyD: "~150 / 100K", property: 150, crimeCtxD: "Very low — affluent Butler Co.",
     schoolDistrictD: "Mars Area SD", schoolGradeD: "A", schoolNoteD: "Highly rated · Butler Co.",
+    // Natural Hazards
+    tornadoAvgD: "~0.2–0.8 / yr (Butler Co.)", tornadoIntensityD: "Mostly EF0–EF1 · rare EF2+",
+    tornadoRecordD: "F3 · Butler city · 1985 · 6 deaths · 80 injuries",
+    tornadoNoteD: "EF-0 confirmed near Mars / Pine Twp · Butler-Allegheny border · Jun 22, 2021",
+    blizzardFreqD: "1–2 significant events / decade", blizzardRecordD: "Blizzard of Jan 1996 · 24.7″ Pittsburgh area",
+    snowRecord24D: "~22″ Butler Co. estimate · major events 1978 & 1996",
+    iceStormD: "1–3 events / year",
+    severeStormDaysD: "~35–45 days / year",
+    floodRiskD: "Low · residential elevations above local flood corridors",
+    floodRecordD: "No major historic floods locally · broader 1936 St. Patrick\'s Day Flood (Pittsburgh)",
+    recordLowD: "~–18°F to –22°F (Butler Co. range)",
+    polarVortexD: "Low–Moderate · milder than WI",
+    earthquakeD: "Very low · occasional minor tremors",
+    otherHazardsD: "Ice storms can cause multi-day power outages · occasional derecho wind events",
   },
 };
 
@@ -361,15 +403,15 @@ function SHead({ label }) {
 // ─── MODE A: Marshall Twp rows ───────────────────────────────────────────────
 function RowM({ label, valMar, valCom, numC, numM, hib=true, note, sub }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", borderBottom: `1px solid ${BORDER}`, fontSize: 12 }}>
-      <div style={{ padding: "7px 12px", background: NEUTRAL, color: "#6B7280", fontSize: 11, fontWeight: 500, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)", borderBottom: `1px solid ${BORDER}`, fontSize: 12 }}>
+      <div style={{ padding: "7px 12px", background: NEUTRAL, color: "#6B7280", fontSize: 11, fontWeight: 500, display: "flex", flexDirection: "column", justifyContent: "center", overflowWrap: "break-word" }}>
         {label}{sub && <span style={{ fontSize: 10, color: "#9CA3AF" }}>{sub}</span>}
       </div>
-      <div style={{ padding: "7px 10px", background: PA_BG, color: PA_TEXT, fontSize: 11, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ padding: "7px 10px", background: PA_BG, color: PA_TEXT, fontSize: 11, display: "flex", flexDirection: "column", justifyContent: "center", overflowWrap: "break-word" }}>
         {valMar}
         {numC != null && numM != null && <Bar value={numM} reference={numM} higherBetter={hib} />}
       </div>
-      <div style={{ padding: "7px 10px", background: "white", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ padding: "7px 10px", background: "white", display: "flex", flexDirection: "column", justifyContent: "center", overflowWrap: "break-word" }}>
         <span style={{ fontWeight: numC != null && numM != null && (hib ? numC >= numM * 0.88 : numC <= numM * 1.12) ? 700 : 400, color: "#111827" }}>{valCom}</span>
         {numC != null && numM != null && <Bar value={numC} reference={numM} higherBetter={hib} />}
         {note && <span style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{note}</span>}
@@ -401,7 +443,7 @@ function RowC({ label, valA, valB, numA, numB, hib=true, note, sub }) {
   const aWins = diff && (hib ? numA > numB : numA < numB);
   const bWins = diff && (hib ? numB > numA : numB < numA);
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", borderBottom: `1px solid ${BORDER}`, fontSize: 12 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)", borderBottom: `1px solid ${BORDER}`, fontSize: 12 }}>
       <div style={{ padding: "7px 12px", background: NEUTRAL, color: "#6B7280", fontSize: 11, fontWeight: 500, display: "flex", flexDirection: "column", justifyContent: "center" }}>
         {label}{sub && <span style={{ fontSize: 10, color: "#9CA3AF" }}>{sub}</span>}
         {note && <span style={{ fontSize: 10, color: "#9CA3AF" }}>{note}</span>}
@@ -568,7 +610,6 @@ function BaselineToggle({ current, onChange }) {
     </div>
   );
 }
-
 // ─── MODE TOGGLE ─────────────────────────────────────────────────────────────
 function ModeToggle({ mode, onChange }) {
   const opts = [
@@ -594,7 +635,6 @@ function ModeToggle({ mode, onChange }) {
     </div>
   );
 }
-
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 function App() {
   const [sel,      setSel    ] = useState(0);
@@ -795,6 +835,39 @@ function App() {
               <RowM label="Annual Avg Temp"   valMar={base.avgTempD}        valCom="~49°F" />
               <RowM label="Climate Type"      valMar="Humid Continental" valCom="Humid Continental" />
               {com.id === "kohler" && <RowM label="Lake Michigan Effect" valMar="n/a" valCom="Slight temp moderation near lake" />}
+
+              <SHead label="Natural Hazards & Extreme Weather" />
+              <RowM label="Tornadoes / Year" sub="local area average"
+                valMar={base.tornadoAvgD} valCom="~1–3 / yr (SE WI 4-county area) · WI avg 23 / yr statewide" />
+              <RowM label="Tornado Intensity" sub="typical range"
+                valMar={base.tornadoIntensityD} valCom="EF0–EF1 typical · EF2–EF3 rare · EF4 recorded (Waukesha Co. 1984)" />
+              <RowM label="Strongest on Record" sub="local area"
+                valMar={base.tornadoRecordD} valCom="F4 · Waukesha Co. · 1984 · 1 death · 14 injuries" />
+              <RowM label="Notable Tornado Note"
+                valMar={base.tornadoNoteD} valCom="Lake Michigan boundary effect: Ozaukee Co. communities historically safest in SE WI · lake cuts off long-track tornadoes" />
+              <RowM label="Major Snow Events / Season" sub="6″+ snowfall"
+                valMar={base.blizzardFreqD} valCom="2–4 major snow events / season (6″+)" />
+              <RowM label="Record Single Snowstorm"
+                valMar={base.blizzardRecordD} valCom="Groundhog Day Blizzard · Feb 2, 2011 · 24″+ Kenosha · Racine · Walworth · SE WI" />
+              <RowM label="Record 24-hr Snowfall"
+                valMar={base.snowRecord24D} valCom="~18–24″ possible in SE WI · statewide record 26″ (Iron Co.)" />
+              <RowM label="Ice Storm Events / Year"
+                valMar={base.iceStormD} valCom="2–4 events / year" />
+              <RowM label="Severe Thunderstorm Days / Year"
+                valMar={base.severeStormDaysD} valCom="~40–50 days / year · ~200 wind-damage reports / yr statewide · baseball-size hail recorded 2025" />
+              <RowM label="Flood Risk & History"
+                valMar={base.floodRiskD} valCom="Moderate · Milwaukee River corridor flooding (West Bend, Cedarburg, Grafton, Mequon)" />
+              <RowM label="Notable Flood Event"
+                valMar={base.floodRecordD} valCom="Aug 9–10, 2025 · Milwaukee NW side: 14.55″ in 24 hrs · new state 24-hr precipitation record" />
+              <RowM label="Record Low Temperature"
+                valMar={base.recordLowD} valCom="–26°F Milwaukee · Jan 19, 1982 · statewide record –55°F (Couderay, Jan 1996)" />
+              <RowM label="Polar Vortex / Extreme Cold"
+                valMar={base.polarVortexD} valCom="Moderate–High · Jan 2019 polar vortex: –30°F to –60°F wind chills statewide; SE WI –20°F to –40°F" />
+              <RowM label="Earthquake Risk"
+                valMar={base.earthquakeD} valCom="Negligible · no significant seismic history in Wisconsin" />
+              <RowM label="Other Notable Hazards"
+                valMar={base.otherHazardsD} valCom="Derechos (Jul 2011, Jul 2019) · Lake Michigan storm surge & record high water levels (2019) · extreme cold warnings issued Jan 2025 for all WI counties (wind chills –45°F)" />
+
 
               <SHead label="Crime (2024 FBI UCR)" />
               <RowM label="Overall Crime Rate" sub="per 1,000" valMar={base.crimeD} valCom={com.crimeTotal + " / 1K"} numC={com.crimeTotal} numM={base.crimeTotal} hib={false} />
