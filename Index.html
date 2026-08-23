@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Western PA and Southeast WI Report</title>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :root { --header-h: 130px; }
+    body { margin: 0; padding: 0; font-family: Inter, system-ui, sans-serif; background: #F1F5F9; }
+    .main-container { max-width: 560px; margin: 0 auto; }
+    .map-container { height: 280px; width: 100%; }
+    @media (min-width: 768px) {
+      .main-container { max-width: 860px; }
+      .map-container { height: 380px; }
+    }
+    /* Prevent Leaflet from locking page scroll on desktop */
+    .leaflet-container { touch-action: pan-y !important; }
+    button { font-family: inherit; }
+    a { font-family: inherit; }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    .map-tip { background: rgba(255,255,255,0.92); border: 1px solid #E5E7EB; border-radius: 4px; font-size: 11px; font-weight: 600; color: #374151; padding: 2px 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.12); white-space: nowrap; }
+    .map-tip::before { display: none; }
+    .leaflet-control-attribution { font-size: 8px !important; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <script>console.log=console.warn=console.error=console.info=console.debug=()=>{};</script>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+
+// ─── TOKENS ─────────────────────────────────────────────────────────────────
+const BORDER  = "#E5E7EB";
+const NEUTRAL = "#F9FAFB";
+const PA_BG   = "#1E3A5F";
+const PA_TEXT = "#BFDBFE";
+
+const DIR_STYLES = {
+  "Job":  { bg: "#374151", fg: "white"   },
+  "↑ N":  { bg: "#14532D", fg: "#D1FAE5" },
+  "↓ S":  { bg: "#1D4ED8", fg: "#EFF6FF" },
+  "↘ SE": { bg: "#4C1D95", fg: "#EDE9FE" },
+};
+
+// ─── MAP ─────────────────────────────────────────────────────────────────────
+const LAT_MAX = 43.85, LAT_SPAN = 0.90, LON_MAX = 88.40, LON_SPAN = 0.75;
+const MAP_W = 340, MAP_H = 310, PAD = 28;
+const WORK_W = MAP_W - PAD * 2, WORK_H = MAP_H - PAD * 2;
+
+function toXY(lat, lon) {
+  return { x: ((LON_MAX - lon) / LON_SPAN) * WORK_W + PAD, y: ((LAT_MAX - lat) / LAT_SPAN) * WORK_H + PAD };
+}
+function miToRxy(miles) {
+  return { rx: (miles / (LON_SPAN * 50.1)) * WORK_W, ry: (miles / (LAT_SPAN * 69.0)) * WORK_H };
+}
+
+const COM_POS = {
+  wb: { lat:43.4253,lon:88.1834 }, mequon: { lat:43.2159,lon:88.0314 },
+  kohler: { lat:43.7392,lon:87.7818 }, gtown: { lat:43.2286,lon:88.1104 },
+  cedar: { lat:43.2967,lon:87.9876 }, kewas: { lat:43.5208,lon:88.2290 },
+  jackson: { lat:43.3239,lon:88.1668 }, falls: { lat:43.1789,lon:88.1175 },
+};
+const LABEL_OFFSETS = {
+  wb:[0,13,"middle"], mequon:[8,-10,"start"], kohler:[8,4,"start"], gtown:[-8,4,"end"],
+  cedar:[8,4,"start"], kewas:[-8,4,"end"], jackson:[8,-8,"start"], falls:[-8,4,"end"],
+};
+
+function CommunityMap({ selectedId, communities, dirStyle, onSelect }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef({});
+  const boundsRef = useRef(null);
+  const onSelectRef = useRef(onSelect);
+  useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
+
+  // Coords come directly from each community's lat/lng fields — no separate list needed
+  const COORDS = Object.fromEntries(communities.map(c => [c.id, [c.lat, c.lng]]));
+
+  function dotIcon(bg, size, ring) {
+    const r = ring ? "box-shadow:0 0 0 5px " + bg + "33,0 1px 5px rgba(0,0,0,0.35);" : "box-shadow:0 1px 4px rgba(0,0,0,0.3);";
+    return L.divIcon({
+      html: '<div style="background:' + bg + ';width:' + size + 'px;height:' + size + 'px;border-radius:50%;border:2px solid white;' + r + '"></div>',
+      className: '', iconSize: [size, size], iconAnchor: [size/2, size/2], tooltipAnchor: [size/2 + 2, 0],
+    });
+  }
+
+  function wbIcon() {
+    return L.divIcon({
+      html: '<div style="background:#F59E0B;width:18px;height:18px;border-radius:50%;border:2.5px solid white;box-shadow:0 1px 5px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-size:10px;line-height:18px;text-align:center;color:white;font-weight:800;">&#9733;</div>',
+      className: '', iconSize: [18, 18], iconAnchor: [9, 9], tooltipAnchor: [11, 0],
+    });
+  }
+
+  // Init map once
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+    const map = L.map(containerRef.current, {
+      zoomControl: true, scrollWheelZoom: false,
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a>',
+      maxZoom: 18,
+    }).addTo(map);
+
+    // Distance rings
+    [15, 30].forEach((mi, i) => {
+      L.circle([43.4253, -88.1834], {
+        radius: mi * 1609.34, color: '#94A3B8',
+        weight: 1, dashArray: i === 0 ? '4,4' : '6,5',
+        fill: false, opacity: i === 0 ? 0.6 : 0.45,
+      }).addTo(map);
+    });
+
+    // West Bend
+    const wb = L.marker([43.4253, -88.1834], { icon: wbIcon(), zIndexOffset: 2000 })
+      .addTo(map)
+      .bindTooltip('West Bend — USCCA Offices', { direction: 'right', className: 'map-tip' });
+    wb.on('click', () => onSelectRef.current('wb'));
+    markersRef.current['wb'] = wb;
+
+    // Community markers
+    communities.forEach(com => {
+      if (com.id === 'wb') return;
+      const coords = COORDS[com.id]; if (!coords) return;
+      const isSel = com.id === selectedId;
+      const m = L.marker(coords, {
+        icon: dotIcon(isSel ? dirStyle.bg : '#64748B', isSel ? 14 : 10, isSel),
+        zIndexOffset: isSel ? 1000 : 0,
+      }).addTo(map)
+        .bindTooltip(com.name + (com.miles ? ' · ' + com.miles + ' mi' : ''), { direction: 'right', className: 'map-tip' });
+      m.on('click', () => onSelectRef.current(com.id));
+      markersRef.current[com.id] = m;
+    });
+
+    // Fit map to show all communities with padding — store bounds for reset
+    const allCoords = Object.values(COORDS);
+    const initialBounds = L.latLngBounds(allCoords);
+    map.fitBounds(initialBounds, { padding: [36, 36] });
+    boundsRef.current = initialBounds;
+    // Restore page scrollability — Leaflet can set overflow:hidden on html/body.
+    // Run immediately and after a short delay (tiles can trigger a second override).
+    function restoreScroll() {
+      document.documentElement.style.overflow = '';
+      document.documentElement.style.height   = '';
+      document.body.style.overflow            = '';
+      document.body.style.height              = '';
+    }
+    restoreScroll();
+    setTimeout(restoreScroll, 50);
+    setTimeout(restoreScroll, 300);
+    map.invalidateSize();
+
+    mapRef.current = map;
+    return () => { map.remove(); mapRef.current = null; markersRef.current = {}; };
+  }, []);
+
+  // Update markers on selection change
+  useEffect(() => {
+    if (!mapRef.current) return;
+    communities.forEach(com => {
+      if (com.id === 'wb') return;
+      const m = markersRef.current[com.id]; if (!m) return;
+      const isSel = com.id === selectedId;
+      m.setIcon(dotIcon(isSel ? dirStyle.bg : '#64748B', isSel ? 14 : 10, isSel));
+      m.setZIndexOffset(isSel ? 1000 : 0);
+    });
+  }, [selectedId, dirStyle]);
+
+  return (
+    <div style={{ borderBottom: "1px solid " + BORDER, position: "relative", zIndex: 0, isolation: "isolate" }}>
+      <div ref={containerRef} className="map-container" />
+      <button
+        onClick={() => boundsRef.current && mapRef.current && mapRef.current.fitBounds(boundsRef.current, { padding: [36, 36] })}
+        style={{
+          position: "absolute", bottom: 10, right: 10, zIndex: 1000,
+          background: "white", border: "1px solid #D1D5DB",
+          borderRadius: 6, padding: "4px 10px",
+          fontSize: 11, fontWeight: 600, color: "#374151",
+          cursor: "pointer", boxShadow: "0 1px 5px rgba(0,0,0,0.14)",
+          display: "flex", alignItems: "center", gap: 4,
+        }}
+      >
+        &#8635; Reset view
+      </button>
+    </div>
+  );
+}
+
+
+
+// ─── PHOTO GALLERY ───────────────────────────────────────────────────────────
+function PhotoGallery({ com }) {
+  const googleLink = "https://www.google.com/search?q="
+    + encodeURIComponent(com.name + " Wisconsin") + "&tbm=isch";
+  return (
+    <div style={{ padding: "10px 14px" }}>
+      <a href={googleLink} target="_blank" rel="noopener noreferrer"
+        style={{ fontSize: 12, fontWeight: 600, color: "#3B82F6", textDecoration: "none" }}>
+        Images of {com.name} &rarr;
+      </a>
+    </div>
+  );
+}
+
+
+// ─── COMMUNITY DATA ──────────────────────────────────────────────────────────
+// TO ADD A NEW COMMUNITY: copy any entry below, assign a unique id, fill in
+// all fields, set lat/lng (decimal degrees), and add a tabColor. That's it —
+// the map, tabs, and data table all pick it up automatically.
+const COMMUNITIES = [
+  { id:"wb", lat:43.4253, lng:-88.1834, wikiSlug:"West_Bend,_Wisconsin",     name:"West Bend",        sub:"Washington Co. · USCCA Offices", dir:"Job",  miles:0,  commute:0,  rank:null, tabColor:{bg:"#374151",fg:"white"}, zillowUrl:"https://www.realtor.com/realestateandhomes-search/West-Bend_WI/",      pop:"32,149",  area:"15.6 sq mi", density:2057, medianAge:41.0, white:94.6,hispanic:4.6,asian:0.6,black:1.9,  income:73036,  perCapita:42263, poverty:5.0,  homeValue:275894, ownership:65, rent:1077,  col:97.3,  crimeTotal:18, violent:214, property:2131, crimeVsNatl:"Violent –42% vs natl", schoolDistrict:"West Bend SD",           schoolGrade:"B+",    schoolNote:"~75th pct WI · merging to 1 HS '27",   character:"Charming small city on the Milwaukee River. County seat of Washington Co. Home of the USCCA offices. Historic downtown, Museum of Wisconsin Art, good parks, direct Kettle Moraine access.",                                   recBullets:["Riverwalk along Milwaukee River","Kettle Moraine Northern Unit (15 min W)","Ice Age Trail access","Cedar Lake & Pike Lake recreation","Museum of Wisconsin Art","Washington County Fair"] },
+  { id:"mequon", lat:43.2159, lng:-88.0314, wikiSlug:"Mequon,_Wisconsin", name:"Mequon",           sub:"Ozaukee Co. · 27 mi S",     dir:"↓ S",  miles:27, commute:32, rank:1,    tabColor:{bg:"#1D4ED8",fg:"#EFF6FF"}, zillowUrl:"https://www.realtor.com/realestateandhomes-search/Mequon_WI/",         pop:"25,329",  area:"46.2 sq mi", density:548,  medianAge:47.7, white:84.6,hispanic:4.3,asian:4.4,black:1.5,  income:144051, perCapita:85279, poverty:2.8,  homeValue:501600, ownership:86, rent:2426,  col:101.0, crimeTotal:6,  violent:0,   property:60,   crimeVsNatl:"Violent near zero · 63% below natl", schoolDistrict:"Mequon-Thiensville SD",   schoolGrade:"A+",    schoolNote:"#3 in WI · Homestead HS",              character:"Ozaukee County's premier suburb. Lowest density in the full radius. Rolling farmland, wooded river lots. 71% of adults hold college degrees. The closest Wisconsin analog to Marshall Township.", recBullets:["5 golf courses in city limits","Milwaukee River trails & 25+ parks","Concordia University (culture)","Ozaukee Interurban Trail","20 min to Milwaukee metro","Lake Michigan beaches (15 min E)"] },
+  { id:"kohler", lat:43.7392, lng:-87.7818, wikiSlug:"Kohler,_Wisconsin", name:"Kohler",           sub:"Sheboygan Co. · ~32 mi NE", dir:"↑ N",  miles:32, commute:38, rank:2,    tabColor:{bg:"#14532D",fg:"#D1FAE5"}, zillowUrl:"https://www.realtor.com/realestateandhomes-search/Kohler_WI/",         pop:"2,274",   area:"5.3 sq mi",  density:412,  medianAge:42.0, white:94.6,hispanic:4.8,asian:0.0,black:0.0,  income:135688, perCapita:73102, poverty:0.3,  homeValue:405317, ownership:92, rent:1905,  col:101,   crimeTotal:3,  violent:0,   property:30,   crimeVsNatl:"Effectively zero violent crime",      schoolDistrict:"Kohler SD",               schoolGrade:"A",     schoolNote:"#22 in WI · Niche #1 family community", character:"Olmsted-designed planned community. Manicured, wooded, architecturally cohesive. World-class golf. 0.3% poverty. Niche's #1 place to raise a family in Wisconsin (2024).",                          recBullets:["Whistling Straits (Ryder Cup)","Blackwolf Run (US Open)","The American Club resort & spa","River Wildlife preserve","Kohler-Andrae State Park (lakefront)","Sheboygan River kayaking"] },
+  { id:"sussex",   name:"Sussex",          sub:"Waukesha Co. · 20 mi SW",  dir:"↙ SW", miles:20, commute:25, rank:3,    lat:43.1344, lng:-88.2255, tabColor:{bg:"#C2410C",fg:"#FFF7ED"}, wikiSlug:"Sussex,_Wisconsin", zillowUrl:"https://www.realtor.com/realestateandhomes-search/Sussex_WI/",
+    pop:"12,607",  area:"~7.7 sq mi",  density:1645, medianAge:38.9, white:86.3,hispanic:1.9,asian:8.0,black:0.7,  income:115625, perCapita:56986, poverty:4.5,  homeValue:470719, ownership:79, rent:1231,  col:98.4,  crimeTotal:5,  violent:30,  property:450,  crimeVsNatl:"Low · one of best places to live in WI (Niche)",
+    schoolDistrict:"Hamilton SD", schoolGrade:"A", schoolNote:"#17 in WI · Hamilton HS",
+    character:"Fast-growing Waukesha County village SW of West Bend with the second-highest income in the full radius after Mequon. Strongly conservative, family-oriented community with lots of parks and newer housing stock (mostly 1990s–2000s). Hamilton SD is A-rated at #17 statewide. The density is higher than Marshall Township but income and school strength are a genuine match.",
+    recBullets:["Pike Lake State Park (10 min N)","Kettle Moraine Southern Unit nearby","Bugline Trail connection","30 min to Milwaukee metro","Menomonee River access","Waukesha County park system"] },
+  { id:"gtown", lat:43.2286, lng:-88.1104, wikiSlug:"Germantown,_Wisconsin",  name:"Germantown",       sub:"Washington Co. · 14 mi S",  dir:"↓ S",  miles:14, commute:18, rank:4,    tabColor:{bg:"#1D4ED8",fg:"#EFF6FF"}, zillowUrl:"https://www.realtor.com/realestateandhomes-search/Germantown_WI/",     pop:"20,962",  area:"34.4 sq mi", density:611,  medianAge:44.1, white:84.2,hispanic:3.0,asian:5.6,black:3.7,  income:100231, perCapita:53035, poverty:2.9,  homeValue:373600, ownership:85, rent:1300,  col:98,    crimeTotal:16, violent:150, property:1450, crimeVsNatl:"Violent –57% vs natl",               schoolDistrict:"Germantown SD",           schoolGrade:"A",     schoolNote:"#2 Washington Co. · ~15th statewide",  character:"Low-density Washington County suburb with deep German heritage. Density nearly matches Marshall Township. Wooded lots, good parks, conservative community, short commute.",                         recBullets:["Bugline Recreation Trail (12+ mi)","Menomonee River Parkway","Multiple county parks","20 min to Milwaukee","Richfield area lakes & fishing","Kettle Moraine (20 min W)"] },
+  { id:"cedar", lat:43.2967, lng:-87.9876, wikiSlug:"Cedarburg,_Wisconsin",  name:"Cedarburg",        sub:"Ozaukee Co. · 21 mi SE",    dir:"↘ SE", miles:21, commute:26, rank:5,    tabColor:{bg:"#4C1D95",fg:"#EDE9FE"}, zillowUrl:"https://www.realtor.com/realestateandhomes-search/Cedarburg_WI/",      pop:"12,605",  area:"15.6 sq mi", density:808,  medianAge:42.4, white:90.7,hispanic:4.3,asian:1.8,black:0.8,  income:84896,  perCapita:53000, poverty:2.2,  homeValue:430000, ownership:78, rent:1116,  col:116,   crimeTotal:4,  violent:15,  property:390,  crimeVsNatl:"1 in 232 chance · top 10% safest",   schoolDistrict:"Cedarburg SD",            schoolGrade:"A",     schoolNote:"Highly rated · Ozaukee Co.",            character:"Historic limestone downtown, boutique shops, arts scene. One of Wisconsin's safest communities. More 'charming town' than wooded suburban — a different but highly livable lifestyle.",            recBullets:["Cedar Creek winery & arts trail","Ozaukee Interurban Trail (30+ mi)","Covered bridge park","Museum of Wisconsin Art (nearby)","Lake Michigan (25 min E)","Active downtown events calendar"] },
+  { id:"grafton",  name:"Grafton",         sub:"Ozaukee Co. · 14 mi SE",   dir:"↘ SE", miles:14, commute:18, rank:6,    lat:43.3191, lng:-87.9420, tabColor:{bg:"#0E7490",fg:"#E0F7FA"}, wikiSlug:"Grafton,_Wisconsin", zillowUrl:"https://www.realtor.com/realestateandhomes-search/Grafton_WI/",
+    pop:"12,741",  area:"4.04 sq mi",  density:3153, medianAge:41.5, white:89.5,hispanic:3.5,asian:2.5,black:1.5,  income:89861,  perCapita:49640, poverty:0.7,  homeValue:365455, ownership:68, rent:1300,  col:99,    crimeTotal:7,  violent:40,  property:660,  crimeVsNatl:"Low · Ozaukee Co. · 0.7% poverty",
+    schoolDistrict:"Grafton SD", schoolGrade:"B+", schoolNote:"Well-rated · Ozaukee Co.",
+    character:"Ozaukee County village on the Milwaukee River, 14 miles SE — positioned between West Bend and Cedarburg along the same river corridor. Shares Ozaukee County's low-poverty, good-school character. The compact 4 sq mi footprint means higher density than Marshall Township, but it's a solid Cedarburg-tier option with slightly lower home prices.",
+    recBullets:["Milwaukee River trail system","Ozaukee Interurban Trail (direct access)","5 min south to Cedarburg","Lake Michigan (10 min E)","Strong German-American heritage","25 min to Milwaukee"] },
+  { id:"portwash", name:"Port Washington",   sub:"Ozaukee Co. · 15 mi E",    dir:"→ E",  miles:15, commute:20, rank:7,    lat:43.3854, lng:-87.8753, tabColor:{bg:"#4338CA",fg:"#EDE9FE"}, wikiSlug:"Port_Washington,_Wisconsin", zillowUrl:"https://www.realtor.com/realestateandhomes-search/Port-Washington_WI/",
+    pop:"12,750",  area:"3.85 sq mi",  density:3315, medianAge:39.0, white:90.7,hispanic:2.5,asian:1.5,black:1.5,  income:84166,  perCapita:46992, poverty:3.5,  homeValue:329332, ownership:67, rent:1133,  col:97.4,  crimeTotal:6,  violent:25,  property:570,  crimeVsNatl:"6/1K total · lower than 59% of WI communities",
+    schoolDistrict:"Port Washington-Saukville SD", schoolGrade:"A-", schoolNote:"Highly rated · Ozaukee Co.",
+    character:"The only Lake Michigan lakefront option in the radius. Historic harbor, limestone buildings, marina, and a lighthouse — a lifestyle unlike any other community in this list. Ozaukee County means low poverty, good schools, and safe streets. Income trails the stronger income-match communities but the Lake Michigan access and historic small-city character are genuinely unique.",
+    recBullets:["Lake Michigan harbor & marina","Historic lighthouse & pier Walk","Harrington Beach State Park (5 min N)","Ozaukee Interurban Trail direct access","Lake Michigan fishing charters","Sailing & kayaking on Lake Michigan"] },
+  { id:"kewas", lat:43.5208, lng:-88.229, wikiSlug:"Kewaskum,_Wisconsin",  name:"Kewaskum",         sub:"Washington Co. · 8 mi N",   dir:"↑ N",  miles:8,  commute:11, rank:8,    tabColor:{bg:"#14532D",fg:"#D1FAE5"}, zillowUrl:"https://www.realtor.com/realestateandhomes-search/Kewaskum_WI/",       pop:"4,564",   area:"~4 sq mi",   density:820,  medianAge:38.0, white:93.5,hispanic:4.4,asian:0.5,black:0.5,  income:103472, perCapita:52214, poverty:6.6,  homeValue:288800, ownership:79, rent:935,   col:96,    crimeTotal:7,  violent:24,  property:680,  crimeVsNatl:"Historically among safest in WI",    schoolDistrict:"Kewaskum SD",             schoolGrade:"B+",    schoolNote:"Top 25% of WI districts",              character:"Small growing village directly north of West Bend. Same Washington County, shortest north commute. Modest home prices vs Marshall Township but very safe and family-oriented.",               recBullets:["Kettle Moraine Northern Unit (10 min W)","Ice Age Trail direct access","Local parks & recreation","Pike Lake State Park (20 min S)","Short drive to West Bend amenities","Green Lake area fishing (30 min)"] },
+  { id:"jackson", lat:43.3239, lng:-88.1668, wikiSlug:"Jackson,_Washington_County,_Wisconsin",name:"Jackson",          sub:"Washington Co. · 8 mi S",   dir:"↓ S",  miles:8,  commute:12, rank:9,    tabColor:{bg:"#1D4ED8",fg:"#EFF6FF"}, zillowUrl:"https://www.realtor.com/realestateandhomes-search/Jackson_WI/",  pop:"8,169",   area:"2.5 sq mi",  density:3242, medianAge:45.5, white:92.5,hispanic:3.3,asian:1.2,black:0.5,  income:83337,  perCapita:52648, poverty:6.0,  homeValue:352550, ownership:66, rent:1143,  col:97.5,  crimeTotal:8,  violent:60,  property:720,  crimeVsNatl:"Below natl avg · safe community",    schoolDistrict:"West Bend / Germantown SD", schoolGrade:"B+/A",  schoolNote:"Shares both SDs",                      character:"Fast-growing village with the shortest south commute. High village density is the key mismatch vs Marshall Township's rural character. Good for minimizing commute.",                          recBullets:["Immediate access to West Bend amenities","Kettle Moraine (20 min W)","Jackson Marsh area wildlife","Milwaukee River access","Easy I-41 access for Milwaukee","Close to West Bend & Germantown"] },
+  { id:"falls", lat:43.1789, lng:-88.1175, wikiSlug:"Menomonee_Falls,_Wisconsin",  name:"Menomonee Falls",  sub:"Waukesha Co. · 18 mi S",    dir:"↓ S",  miles:18, commute:22, rank:10,    tabColor:{bg:"#0F766E",fg:"#CCFBF1"}, zillowUrl:"https://www.realtor.com/realestateandhomes-search/Menomonee-Falls_WI/",pop:"39,539",  area:"33.3 sq mi", density:1223, medianAge:42.4, white:82.4,hispanic:4.8,asian:5.6,black:3.7,  income:100238, perCapita:52684, poverty:3.4,  homeValue:402286, ownership:82, rent:1391,  col:98.3,  crimeTotal:6,  violent:71,  property:908,  crimeVsNatl:"Violent –80% vs natl · top 100 safest", schoolDistrict:"Menomonee Falls SD",      schoolGrade:"A+",    schoolNote:"Top-rated · Milwaukee metro",          character:"Largest suburb in the radius. Excellent amenities, top schools, very safe. Suburban density is about double Marshall Township's — well-resourced but lacking the wooded rural character.",      recBullets:["Menomonee River Parkway trail system","Bugline Trail (to Germantown)","Milwaukee County parks nearby","Strong retail & restaurant corridor","20 min to Milwaukee sports & entertainment","Kettle Moraine (25 min W)"] },
+];
+
+// ─── PA BASELINES ─────────────────────────────────────────────────────────────
+const BASELINES = {
+  marshall: {
+    id: "marshall", label: "Marshall Twp", sublabel: "Allegheny Co., PA",
+    pop: "10,226", area: "15.4 sq mi", densityD: "662 / sq mi", density: 662, medianAge: "43.1 yrs",
+    whiteD: "75.2%", hispanicD: "~2%", asianD: "20.4%", blackD: "<2%",
+    incomeD: "$165,099", income: 165099, perCapitaD: "$87,227", perCapita: 87227,
+    povertyD: "3.5%", poverty: 3.5, homeValueD: "$575,000", homeValue: 575000,
+    ownershipD: "~90%", ownership: 90, rentD: "~$1,800 est.", colD: "~110 (est.)",
+    groceryD: "~Avg", utilitiesD: "+20% vs avg", utilBillD: "~$270", gasD: "~$3.41/gal",
+    healthcareD: "–5% (PA)", transportD: "+11% (PA)", milkD: "~$4.67",
+    janD: "38°F / 21°F", julD: "84°F / 63°F", snowD: '~27"', rainD: '~41"',
+    sunnyD: "~160", avgTempD: "~52°F",
+    crimeD: "~1 / 1K (very low)", crimeTotal: 1, violentD: "~10 / 100K", violent: 10,
+    propertyD: "~100 / 100K", property: 100, crimeCtxD: "Very low — affluent township",
+    schoolDistrictD: "North Allegheny SD", schoolGradeD: "10/10 ✦", schoolNoteD: "#1 in PA region",
+    // Natural Hazards
+    tornadoAvgD: "~0.1–0.8 / yr (Allegheny Co.)", tornadoIntensityD: "98% EF0–EF1 · rare EF2+",
+    tornadoRecordD: "F4 · Allegheny Co. · 1944 · 17 deaths · 200 injuries",
+    tornadoNoteD: "EF-2 Findlay Twp (Allegheny Co.) May 8, 2024 · 130 mph",
+    blizzardFreqD: "1–2 significant events / decade", blizzardRecordD: "Blizzard of Jan 1996 · 24.7″ Pittsburgh",
+    snowRecord24D: "20.8″ Pittsburgh · Jan 1945",
+    iceStormD: "1–3 events / year",
+    severeStormDaysD: "~35–45 days / year",
+    floodRiskD: "Low–Moderate · Allegheny River valley flooding in Pittsburgh",
+    floodRecordD: "1936 St. Patrick\'s Day Flood · historic Pittsburgh (46 ft above flood stage)",
+    recordLowD: "–22°F · Pittsburgh · Jan 19, 1994",
+    polarVortexD: "Low–Moderate exposure · milder than WI",
+    earthquakeD: "Very low · occasional minor tremors felt from distant quakes",
+    otherHazardsD: "Occasional derecho events · ice storms can cause multi-day power outages",
+  },
+  cranberry: {
+    id: "cranberry", label: "Cranberry Twp", sublabel: "Butler Co., PA",
+    pop: "34,094", area: "~28 sq mi", densityD: "1,231 / sq mi", density: 1231, medianAge: "40.1 yrs",
+    whiteD: "88.9%", hispanicD: "~1.5%", asianD: "3.7%", blackD: "1.2%",
+    incomeD: "$125,126", income: 125126, perCapitaD: "$63,809", perCapita: 63809,
+    povertyD: "4.4%", poverty: 4.4, homeValueD: "$420,000", homeValue: 420000,
+    ownershipD: "~87%", ownership: 87, rentD: "~$1,500 est.", colD: "~104",
+    groceryD: "–2% vs avg", utilitiesD: "+18% vs avg", utilBillD: "~$255", gasD: "~$3.38/gal",
+    healthcareD: "–5% (PA)", transportD: "+10% (PA)", milkD: "~$4.60",
+    janD: "36°F / 18°F", julD: "83°F / 62°F", snowD: '~35–40"', rainD: '~39"',
+    sunnyD: "~155", avgTempD: "~51°F",
+    crimeD: "~3 / 1K (very low)", crimeTotal: 3, violentD: "~15 / 100K", violent: 15,
+    propertyD: "~280 / 100K", property: 280, crimeCtxD: "Very low — suburban Butler Co.",
+    schoolDistrictD: "Seneca Valley SD", schoolGradeD: "A", schoolNoteD: "Top-ranked in PA · Butler Co.",
+    // Natural Hazards
+    tornadoAvgD: "~0.2–0.8 / yr (Butler Co.)", tornadoIntensityD: "Mostly EF0–EF1 · rare EF2+",
+    tornadoRecordD: "F3 · Butler city · 1985 · 6 deaths · 80 injuries",
+    tornadoNoteD: "EF-0 confirmed Cranberry/Seven Fields · Butler-Allegheny border · Jun 22, 2021",
+    blizzardFreqD: "1–2 significant events / decade", blizzardRecordD: "Blizzard of Jan 1996 · 24.7″ Pittsburgh area",
+    snowRecord24D: "~22″ Butler Co. estimate · major events 1978 & 1996",
+    iceStormD: "1–3 events / year",
+    severeStormDaysD: "~35–45 days / year",
+    floodRiskD: "Low–Moderate · stream corridor flooding in parts of township",
+    floodRecordD: "No major historic floods locally · broader 1936 St. Patrick\'s Day Flood (Pittsburgh)",
+    recordLowD: "~–18°F to –22°F (Butler Co. range)",
+    polarVortexD: "Low–Moderate · milder than WI",
+    earthquakeD: "Very low · occasional minor tremors",
+    otherHazardsD: "Ice storms can cause multi-day power outages · occasional derecho wind events",
+  },
+  mars: {
+    id: "mars", label: "Mars / Adams Twp", sublabel: "Butler Co., PA",
+    pop: "~19,257 (ZIP area)", area: "~22 sq mi", densityD: "~600 / sq mi", density: 600, medianAge: "~42 yrs",
+    whiteD: "~91%", hispanicD: "~2.5%", asianD: "~5%", blackD: "~0.5%",
+    incomeD: "$151,560", income: 151560, perCapitaD: "~$85,000 est.", perCapita: 85000,
+    povertyD: "~2.5%", poverty: 2.5, homeValueD: "$481,300", homeValue: 481300,
+    ownershipD: "~92%", ownership: 92, rentD: "~$1,700 est.", colD: "~108",
+    groceryD: "–2% vs avg", utilitiesD: "+18% vs avg", utilBillD: "~$255", gasD: "~$3.38/gal",
+    healthcareD: "–5% (PA)", transportD: "+10% (PA)", milkD: "~$4.60",
+    janD: "35°F / 17°F", julD: "83°F / 62°F", snowD: '~37"', rainD: '~38"',
+    sunnyD: "~155", avgTempD: "~51°F",
+    crimeD: "~2 / 1K (very low)", crimeTotal: 2, violentD: "~8 / 100K", violent: 8,
+    propertyD: "~150 / 100K", property: 150, crimeCtxD: "Very low — affluent Butler Co.",
+    schoolDistrictD: "Mars Area SD", schoolGradeD: "A", schoolNoteD: "Highly rated · Butler Co.",
+    // Natural Hazards
+    tornadoAvgD: "~0.2–0.8 / yr (Butler Co.)", tornadoIntensityD: "Mostly EF0–EF1 · rare EF2+",
+    tornadoRecordD: "F3 · Butler city · 1985 · 6 deaths · 80 injuries",
+    tornadoNoteD: "EF-0 confirmed near Mars / Pine Twp · Butler-Allegheny border · Jun 22, 2021",
+    blizzardFreqD: "1–2 significant events / decade", blizzardRecordD: "Blizzard of Jan 1996 · 24.7″ Pittsburgh area",
+    snowRecord24D: "~22″ Butler Co. estimate · major events 1978 & 1996",
+    iceStormD: "1–3 events / year",
+    severeStormDaysD: "~35–45 days / year",
+    floodRiskD: "Low · residential elevations above local flood corridors",
+    floodRecordD: "No major historic floods locally · broader 1936 St. Patrick\'s Day Flood (Pittsburgh)",
+    recordLowD: "~–18°F to –22°F (Butler Co. range)",
+    polarVortexD: "Low–Moderate · milder than WI",
+    earthquakeD: "Very low · occasional minor tremors",
+    otherHazardsD: "Ice storms can cause multi-day power outages · occasional derecho wind events",
+  },
+};
+
+// MARSHALL kept for any legacy refs
+const MARSHALL = BASELINES.marshall;
+
+// ─── PITTSBURGH vs MILWAUKEE DATA ────────────────────────────────────────────
+const PGH = {
+  name: "Pittsburgh", sub: "Allegheny Co., PA", color: "#1D4ED8", colorLight: "#EFF6FF",
+  pop:"304,759", area:"55.6 sq mi", density:"5,556/sq mi", medianAge:"34.5 yrs",
+  white:"61.9%", hispanic:"~4%", asian:"6.1%", black:"22.1%", foreignBorn:"9.2%",
+  income:"$65,742", perCapita:"$49,351", poverty:"19.9%", unemployment:"~4.5%",
+  homeValue:"$205,800", ownership:"47.7%", rent:"~$1,481/mo", col:"~98 (2% below avg)",
+  grocery:"–2% vs natl avg", utilities:"+22% vs natl avg", utilBill:"~$269/mo",
+  gas:"~$3.41/gal", healthcare:"–5% vs natl", transport:"+11% vs natl", milk:"~$4.67",
+  janHiLo:"38°F / 21°F", julHiLo:"84°F / 63°F", snow:'~26–28"', rain:'~41"',
+  sunny:"~160 days/yr", comfortDays:"~177 days/yr", avgTemp:"~52°F",
+  crimeOverall:"29 / 1K", crimeViolent:"427 / 100K", crimeProp:"2,280 / 100K",
+  crimeCtx:"27.8% above natl avg", crimeTrend:"Decreasing (–7% in '24)",
+  schoolDistrict:"Pittsburgh City SD", schoolGrade:"C+/B–", schoolNote:"Highly variable by neighborhood",
+  metro:"~2.44M", unis:"Pitt, CMU, Duquesne, RMU",
+  sports:"Steelers (NFL) · Pirates (MLB) · Penguins (NHL)",
+  knownFor:"Tech, Healthcare, Steel, Robotics",
+  rec:["163 city parks / 3,800 acres","Three Rivers Heritage Trail","Great Allegheny Passage (150 mi to DC)","Frick Park urban forest","Kayaking / rowing on 3 rivers","Hidden Valley & Seven Springs ski (90 min)","Carnegie Museum, Andy Warhol Museum","Phipps Conservatory & Botanical Gardens"],
+};
+
+const MKE = {
+  name: "Milwaukee", sub: "Milwaukee Co., WI", color: "#15803D", colorLight: "#F0FDF4",
+  pop:"566,973", area:"96.1 sq mi", density:"5,900/sq mi", medianAge:"32.4 yrs",
+  white:"31.7%", hispanic:"20.9%", asian:"~3%", black:"37.9%", foreignBorn:"11%",
+  income:"$54,234", perCapita:"~$31,000", poverty:"~25%", unemployment:"~5.5%",
+  homeValue:"$184,000", ownership:"41.8%", rent:"~$1,592/mo", col:"~101 (1% above avg)",
+  grocery:"+1% vs natl avg", utilities:"–7% vs natl avg", utilBill:"~$200/mo",
+  gas:"~$3.20/gal", healthcare:"+2% vs natl", transport:"+1–2% vs natl", milk:"~$4.10",
+  janHiLo:"26°F / 15°F", julHiLo:"83°F / 64°F", snow:'~45–48"', rain:'~35"',
+  sunny:"~191 days/yr", comfortDays:"~153 days/yr", avgTemp:"~49°F",
+  crimeOverall:"42 / 1K", crimeViolent:"~900 / 100K", crimeProp:"~3,300 / 100K",
+  crimeCtx:"Top 100 most dangerous US cities", crimeTrend:"Persistently high",
+  schoolDistrict:"Milwaukee Public SD", schoolGrade:"D/C", schoolNote:"Highly variable by school",
+  metro:"~1.58M", unis:"UWM, Marquette, MATC, MSOE",
+  sports:"Bucks (NBA) · Brewers (MLB) · Admirals (AHL)",
+  knownFor:"Beer, Manufacturing, Lake Michigan, Summerfest",
+  rec:["1,400 acres Lake Michigan beaches & parks","Bradford Beach (top US city beach)","Oak Leaf Trail (100+ mi paved network)","Summerfest (world's largest music festival)","Milwaukee Art Museum (Calatrava)","Harley-Davidson Museum","Kettle Moraine (30 min SW)","Urban kayaking, sailing, lakefront boating"],
+};
+
+// ─── SHARED HELPERS ──────────────────────────────────────────────────────────
+function Bar({ value, reference, higherBetter = true }) {
+  const ratio = higherBetter ? value / reference : reference / value;
+  const fill  = Math.min(ratio * 100, 100);
+  const color = ratio >= 0.88 ? "#4ADE80" : ratio >= 0.7 ? "#FCD34D" : "#94A3B8";
+  return (
+    <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 3, height: 4, marginTop: 3, overflow: "hidden" }}>
+      <div style={{ width: fill + "%", height: "100%", background: color, borderRadius: 3 }} />
+    </div>
+  );
+}
+
+function SHead({ label }) {
+  return (
+    <div style={{
+      background: "#111827", color: "white",
+      padding: "5px 12px", fontSize: 10, fontWeight: 700,
+      letterSpacing: "0.12em", textTransform: "uppercase",
+      position: "sticky", top: "var(--header-h, 130px)", zIndex: 500,
+    }}>
+      {label}
+    </div>
+  );
+}
+
+// ─── MODE A: Marshall Twp rows ───────────────────────────────────────────────
+function RowM({ label, valMar, valCom, numC, numM, hib=true, note, sub }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)", borderBottom: `1px solid ${BORDER}`, fontSize: 12 }}>
+      <div style={{ padding: "7px 12px", background: NEUTRAL, color: "#6B7280", fontSize: 11, fontWeight: 500, display: "flex", flexDirection: "column", justifyContent: "center", overflowWrap: "break-word" }}>
+        {label}{sub && <span style={{ fontSize: 10, color: "#9CA3AF" }}>{sub}</span>}
+      </div>
+      <div style={{ padding: "7px 10px", background: PA_BG, color: PA_TEXT, fontSize: 11, display: "flex", flexDirection: "column", justifyContent: "center", overflowWrap: "break-word" }}>
+        {valMar}
+        {numC != null && numM != null && <Bar value={numM} reference={numM} higherBetter={hib} />}
+      </div>
+      <div style={{ padding: "7px 10px", background: "white", display: "flex", flexDirection: "column", justifyContent: "center", overflowWrap: "break-word" }}>
+        <span style={{ fontWeight: numC != null && numM != null && (hib ? numC >= numM * 0.88 : numC <= numM * 1.12) ? 700 : 400, color: "#111827" }}>{valCom}</span>
+        {numC != null && numM != null && <Bar value={numC} reference={numM} higherBetter={hib} />}
+        {note && <span style={{ fontSize: 10, color: "#9CA3AF", marginTop: 2 }}>{note}</span>}
+      </div>
+    </div>
+  );
+}
+
+function BulletRow({ title, items }) {
+  return (
+    <div style={{ borderBottom: `1px solid ${BORDER}` }}>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr", fontSize: 11 }}>
+        <div style={{ padding: "7px 12px", background: NEUTRAL, color: "#6B7280", fontWeight: 500 }}>{title}</div>
+        <div style={{ padding: "7px 10px", background: "white" }}>
+          {items.map((item, i) => (
+            <div key={i} style={{ color: "#374151", marginBottom: 2, display: "flex", gap: 4 }}>
+              <span style={{ color: "#9CA3AF", flexShrink: 0 }}>·</span><span>{item}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MODE B: Pittsburgh vs Milwaukee rows ─────────────────────────────────────
+function RowC({ label, valA, valB, numA, numB, hib=true, note, sub }) {
+  const diff = numA != null && numB != null;
+  const aWins = diff && (hib ? numA > numB : numA < numB);
+  const bWins = diff && (hib ? numB > numA : numB < numA);
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)", borderBottom: `1px solid ${BORDER}`, fontSize: 12 }}>
+      <div style={{ padding: "7px 12px", background: NEUTRAL, color: "#6B7280", fontSize: 11, fontWeight: 500, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        {label}{sub && <span style={{ fontSize: 10, color: "#9CA3AF" }}>{sub}</span>}
+        {note && <span style={{ fontSize: 10, color: "#9CA3AF" }}>{note}</span>}
+      </div>
+      <div style={{ padding: "7px 10px", background: aWins ? "#EFF6FF" : "white", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <span style={{ fontWeight: aWins ? 700 : 400, color: aWins ? PGH.color : "#111827", display: "flex", alignItems: "center", gap: 4 }}>
+          {aWins && <span style={{ fontSize: 9 }}>▲</span>}{valA}
+        </span>
+        {diff && <Bar value={numA} reference={Math.max(numA, numB)} higherBetter={hib} />}
+      </div>
+      <div style={{ padding: "7px 10px", background: bWins ? "#F0FDF4" : "white", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <span style={{ fontWeight: bWins ? 700 : 400, color: bWins ? MKE.color : "#111827", display: "flex", alignItems: "center", gap: 4 }}>
+          {bWins && <span style={{ fontSize: 9 }}>▲</span>}{valB}
+        </span>
+        {diff && <Bar value={numB} reference={Math.max(numA, numB)} higherBetter={hib} />}
+      </div>
+    </div>
+  );
+}
+
+function BulletRowC({ label, itemsA, itemsB }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: `1px solid ${BORDER}`, fontSize: 11 }}>
+      <div style={{ padding: "7px 10px", background: "white" }}>
+        {itemsA.map((item, i) => (
+          <div key={i} style={{ color: "#374151", marginBottom: 2, display: "flex", gap: 4 }}>
+            <span style={{ color: "#9CA3AF", flexShrink: 0 }}>·</span><span>{item}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: "7px 10px", background: "#F9FFF9", borderLeft: `1px solid ${BORDER}` }}>
+        {itemsB.map((item, i) => (
+          <div key={i} style={{ color: "#374151", marginBottom: 2, display: "flex", gap: 4 }}>
+            <span style={{ color: "#9CA3AF", flexShrink: 0 }}>·</span><span>{item}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── MODE B VIEW ─────────────────────────────────────────────────────────────
+function CityComparison() {
+  return (
+    <div style={{ borderRadius: "0 0 8px 8px", overflow: "clip", border: `1px solid ${BORDER}`, background: "white" }}>
+
+      <SHead label="Population & Demographics" />
+      <RowC label="Population"    valA={PGH.pop}        valB={MKE.pop}       numA={304759}  numB={566973} />
+      <RowC label="Area"          valA={PGH.area}       valB={MKE.area} />
+      <RowC label="Pop. Density"  sub="higher = more urban" valA={PGH.density} valB={MKE.density} numA={5556} numB={5900} hib={false} />
+      <RowC label="Median Age"    valA={PGH.medianAge}  valB={MKE.medianAge} />
+      <RowC label="% White"       valA={PGH.white}      valB={MKE.white} />
+      <RowC label="% Black"       valA={PGH.black}      valB={MKE.black} />
+      <RowC label="% Hispanic"    valA={PGH.hispanic}   valB={MKE.hispanic} />
+      <RowC label="% Asian"       valA={PGH.asian}      valB={MKE.asian} />
+      <RowC label="Foreign-Born"  valA={PGH.foreignBorn} valB={MKE.foreignBorn} />
+
+      <SHead label="Income & Economy" />
+      <RowC label="Median HH Income"  valA={PGH.income}     valB={MKE.income}     numA={65742}  numB={54234}  hib={true} />
+      <RowC label="Per Capita Income" valA={PGH.perCapita}  valB={MKE.perCapita}  numA={49351}  numB={31000}  hib={true} />
+      <RowC label="Poverty Rate"      valA={PGH.poverty}    valB={MKE.poverty}    numA={19.9}   numB={25}     hib={false} />
+      <RowC label="Unemployment"      valA={PGH.unemployment} valB={MKE.unemployment} />
+
+      <SHead label="Housing" />
+      <RowC label="Median Home Value" valA={PGH.homeValue}  valB={MKE.homeValue}  numA={205800} numB={184000} hib={true} />
+      <RowC label="Homeownership"     valA={PGH.ownership}  valB={MKE.ownership}  numA={47.7}   numB={41.8}   hib={true} />
+      <RowC label="Median Rent"       valA={PGH.rent}       valB={MKE.rent} />
+      <RowC label="COL Index" sub="U.S. avg = 100" valA={PGH.col} valB={MKE.col} />
+
+      <SHead label="Cost of Living" />
+      <RowC label="Groceries vs. Avg"    valA={PGH.grocery}    valB={MKE.grocery} />
+      <RowC label="Utilities vs. Avg"    valA={PGH.utilities}  valB={MKE.utilities} note="WI utilities cheaper than PA" />
+      <RowC label="Monthly Utility Bill" valA={PGH.utilBill}   valB={MKE.utilBill}  numA={269}    numB={200}    hib={false} />
+      <RowC label="Gas Price"            valA={PGH.gas}        valB={MKE.gas} />
+      <RowC label="Healthcare vs. Avg"   valA={PGH.healthcare} valB={MKE.healthcare} />
+      <RowC label="Transportation"       valA={PGH.transport}  valB={MKE.transport} />
+      <RowC label="Gallon of Milk"       valA={PGH.milk}       valB={MKE.milk} />
+
+      <SHead label="Climate" />
+      <RowC label="Jan High / Low"    valA={PGH.janHiLo}      valB={MKE.janHiLo}      note="Milwaukee winters are colder" />
+      <RowC label="July High / Low"   valA={PGH.julHiLo}      valB={MKE.julHiLo} />
+      <RowC label="Annual Snowfall"   valA={PGH.snow}         valB={MKE.snow}         note="Milwaukee gets significantly more snow" />
+      <RowC label="Annual Rainfall"   valA={PGH.rain}         valB={MKE.rain} />
+      <RowC label="Sunny Days / Year" valA={PGH.sunny}        valB={MKE.sunny}        numA={160}    numB={191}    hib={true} />
+      <RowC label="Comfortable Days"  valA={PGH.comfortDays}  valB={MKE.comfortDays}  numA={177}    numB={153}    hib={true} />
+      <RowC label="Annual Avg Temp"   valA={PGH.avgTemp}      valB={MKE.avgTemp} />
+
+      <SHead label="Crime (2024 FBI UCR)" />
+      <RowC label="Overall Crime Rate" sub="per 1,000 residents" valA={PGH.crimeOverall} valB={MKE.crimeOverall} numA={29} numB={42} hib={false} />
+      <RowC label="Violent / 100K"     valA={PGH.crimeViolent}  valB={MKE.crimeViolent} numA={427}  numB={900}  hib={false} />
+      <RowC label="Property / 100K"    valA={PGH.crimeProp}     valB={MKE.crimeProp}    numA={2280} numB={3300} hib={false} />
+      <RowC label="vs. National Avg"   valA={PGH.crimeCtx}      valB={MKE.crimeCtx} />
+      <RowC label="Crime Trend"        valA={PGH.crimeTrend}    valB={MKE.crimeTrend} />
+
+      <SHead label="Schools" />
+      <RowC label="School District"  valA={PGH.schoolDistrict} valB={MKE.schoolDistrict} />
+      <RowC label="Grade / Rating"   valA={PGH.schoolGrade}    valB={MKE.schoolGrade} />
+      <RowC label="Ranking / Note"   valA={PGH.schoolNote}     valB={MKE.schoolNote} />
+
+      <SHead label="Recreation & Outdoors" />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", background: NEUTRAL, borderBottom: `1px solid ${BORDER}`, padding: "5px 10px" }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: PGH.color, textTransform: "uppercase", letterSpacing: "0.06em" }}>Pittsburgh</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: MKE.color, textTransform: "uppercase", letterSpacing: "0.06em", paddingLeft: 10 }}>Milwaukee</div>
+      </div>
+      <BulletRowC label="" itemsA={PGH.rec} itemsB={MKE.rec} />
+
+      <SHead label="City Context" />
+      <RowC label="Metro Population" valA={PGH.metro}    valB={MKE.metro} />
+      <RowC label="Major Universities" valA={PGH.unis}   valB={MKE.unis} />
+      <RowC label="Sports Teams"      valA={PGH.sports}  valB={MKE.sports} />
+      <RowC label="Known For"         valA={PGH.knownFor} valB={MKE.knownFor} />
+
+      <SHead label="Flights: NYC Airports → Milwaukee Mitchell Intl. (MKE)" />
+      <div style={{ background: "#FFF7ED", borderBottom: "1px solid #E5E7EB", padding: "7px 12px", fontSize: 11, color: "#92400E", lineHeight: 1.5 }}>
+        <strong>American Airlines — listed first (employee travel benefits)</strong><br/>
+        AA does not operate nonstop service from JFK or LGA to MKE. All NYC service is connecting via AA hubs. Employee non-rev standby benefits apply on all AA-operated metal, including connections.
+      </div>
+      <RowC label="American Airlines · From JFK"
+        valA="No PIT–MKE nonstop via JFK"
+        valB="Connecting only · ~46 weekly flights · via PHL, CLT, DFW, or ORD · adds ~1.5–3 hrs" />
+      <RowC label="American Airlines · From LGA"
+        valA="No PIT–MKE nonstop via LGA"
+        valB="Connecting only · LGA is an AA focus city · shortest hops via PHL or CLT" />
+      <RowC label="AA nonstop cities into MKE"
+        valA="n/a"
+        valB="AA flies nonstop MKE ↔ DCA, PHL, CLT, DFW, MIA, ORD, LAX · connect through any from NYC" />
+      <RowC label="Delta · From JFK (nonstop)"
+        valA="No PIT–MKE nonstop via JFK"
+        valB="1 nonstop/day · 7/week · ~2h 50m · sole nonstop carrier · Terminal 4" />
+      <RowC label="Delta · From LGA (nonstop)"
+        valA="No PIT–MKE nonstop via LGA"
+        valB="~3 nonstops/day · ~21/week · ~2h 40m · sole nonstop carrier · Terminal C" />
+      <RowC label="Total nonstop NYC → MKE"
+        valA="n/a"
+        valB="~28 nonstops/week via Delta (JetBlue ended JFK–MKE service Oct 2025)"
+        numA={0} numB={28} hib={true} />
+      <RowC label="Best AA non-rev routing"
+        valA="PIT → MKE: connect via ORD or PHL on AA"
+        valB="LGA → PHL → MKE or LGA → CLT → MKE · fastest AA connecting options" />
+    </div>
+  );
+}
+
+// ─── BASELINE TOGGLE ─────────────────────────────────────────────────────────
+function BaselineToggle({ current, onChange }) {
+  const opts = [
+    { id: "marshall",  label: "Marshall Twp" },
+    { id: "cranberry", label: "Cranberry Twp" },
+    { id: "mars",      label: "Mars / Adams Twp" },
+  ];
+  return (
+    <div style={{ background: "#0F172A", padding: "5px 10px", display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid rgba(255,255,255,0.07)", overflowX: "auto" }}>
+      <span style={{ fontSize: 9, color: "#64748B", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Baseline:</span>
+      {opts.map(opt => (
+        <button key={opt.id} onClick={() => onChange(opt.id)} style={{
+          border: "none", borderRadius: 14, cursor: "pointer",
+          padding: "3px 10px", whiteSpace: "nowrap", flexShrink: 0,
+          background: current === opt.id ? "#3B82F6" : "rgba(255,255,255,0.07)",
+          color: current === opt.id ? "white" : "#94A3B8",
+          fontSize: 11, fontWeight: current === opt.id ? 700 : 500,
+          transition: "all 0.15s",
+        }}>{opt.label}</button>
+      ))}
+    </div>
+  );
+}
+// ─── MODE TOGGLE ─────────────────────────────────────────────────────────────
+function ModeToggle({ mode, onChange }) {
+  const opts = [
+    { id: "community", label: "Community Comparison" },
+    { id: "cities",    label: "Pittsburgh vs Milwaukee"         },
+  ];
+  return (
+    <div style={{ background: "#0F172A", padding: "6px 10px", display: "flex", alignItems: "center", gap: 8, borderBottom: `1px solid rgba(255,255,255,0.08)`, overflowX: "auto" }}>
+      <span style={{ fontSize: 9, color: "#64748B", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>View:</span>
+      {opts.map(opt => (
+        <button key={opt.id} onClick={() => onChange(opt.id)} style={{
+          border: "none", borderRadius: 16, cursor: "pointer",
+          padding: "4px 12px", whiteSpace: "nowrap",
+          background: mode === opt.id ? "#3B82F6" : "rgba(255,255,255,0.07)",
+          color: mode === opt.id ? "white" : "#94A3B8",
+          fontSize: 11, fontWeight: mode === opt.id ? 700 : 500,
+          transition: "all 0.15s",
+          outline: mode === opt.id ? "2px solid rgba(59,130,246,0.4)" : "none",
+          outlineOffset: 1,
+          flexShrink: 0,
+        }}>{opt.label}</button>
+      ))}
+    </div>
+  );
+}
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+function App() {
+  const [sel,      setSel    ] = useState(0);
+  const [mode,     setMode   ] = useState("community");
+  const [baselineKey, setBaselineKey] = useState("marshall");
+  const [scrolled, setScrolled] = useState(false);
+  const stickyRef = useRef(null);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const top = stickyRef.current?.getBoundingClientRect().top ?? 1;
+      setScrolled(top <= 1);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Keep --header-h CSS var in sync so section headers stick just below the main header
+  useEffect(() => {
+    const update = () => {
+      if (stickyRef.current) {
+        document.documentElement.style.setProperty('--header-h', stickyRef.current.offsetHeight + 'px');
+      }
+    };
+    update();
+    // Recalculate on resize (desktop ↔ mobile) or after a tick for layout settle
+    const t = setTimeout(update, 50);
+    window.addEventListener('resize', update);
+    return () => { clearTimeout(t); window.removeEventListener('resize', update); };
+  }, [mode, sel, baselineKey]);
+
+  const com = COMMUNITIES[sel];
+  const ds  = com.tabColor;
+  const base = BASELINES[baselineKey];
+
+  return (
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", background: "#F1F5F9", padding: "16px 12px" }}>
+      <div className="main-container" style={{ position: "relative" }}>
+
+        {/* Non-sticky title */}
+        <div style={{ marginBottom: 12 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "#9CA3AF", margin: "0 0 2px" }}>Full Community Analysis · 2024–2025 Data</p>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: "#111827", margin: "0 0 4px" }}>Western PA and Southeast WI Report</h1>
+          <p style={{ fontSize: 12, color: "#6B7280", margin: 0, lineHeight: 1.5 }}>
+            {mode === "community"
+              ? "Tabs are ranked by lifestyle match to Marshall Township — density, income, schools, and character. Each includes a Realtor.com link to check current inventory."
+              : "A head-to-head comparison of Pittsburgh and Milwaukee across all major categories — demographics, income, housing, cost of living, weather, crime, schools, and recreation."}
+          </p>
+        </div>
+
+        {/* STICKY HEADER */}
+        <div ref={stickyRef} style={{ position: "sticky", top: 0, zIndex: 1000, boxShadow: scrolled ? "0 4px 20px rgba(0,0,0,0.22)" : "none", transition: "box-shadow 0.2s ease" }}>
+
+          {/* Mode toggle */}
+          <ModeToggle mode={mode} onChange={setMode} />
+
+          {/* Baseline toggle — community mode only */}
+          {mode === "community" && (
+            <BaselineToggle current={baselineKey} onChange={setBaselineKey} />
+          )}
+
+          {/* Column headers */}
+          {mode === "community" ? (
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", background: "#111827", overflow: "hidden" }}>
+              <div style={{ padding: "7px 12px", color: "#9CA3AF", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>Category</div>
+              <div style={{ padding: "7px 10px", background: PA_BG }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: PA_TEXT, letterSpacing: "0.06em" }}>BASELINE</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "white", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{base.label}</div>
+              <div style={{ fontSize: 9, color: PA_TEXT, opacity: 0.65, whiteSpace: "nowrap" }}>{base.sublabel}</div>
+              </div>
+              <div style={{ padding: "7px 10px", background: ds.bg }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: ds.fg, opacity: 0.7, letterSpacing: "0.06em" }}>
+                  {com.dir === "Job" ? "USCCA OFFICES" : com.dir + " · " + com.miles + " MI"}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: ds.fg }}>{com.name}</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", background: "#111827", overflow: "hidden" }}>
+              <div style={{ padding: "7px 12px", color: "#9CA3AF", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>Category</div>
+              <div style={{ padding: "7px 10px", background: PGH.color }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: "0.06em" }}>PENNSYLVANIA</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "white" }}>Pittsburgh</div>
+              </div>
+              <div style={{ padding: "7px 10px", background: MKE.color }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: "0.06em" }}>WISCONSIN</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "white" }}>Milwaukee</div>
+              </div>
+            </div>
+          )}
+
+          {/* Tab strip — community mode only */}
+          {mode === "community" && (
+            <div style={{ overflowX: "auto", background: "white", borderBottom: `2px solid ${BORDER}` }}>
+              <div style={{ display: "flex", gap: 2, padding: "6px 6px 0", minWidth: "max-content" }}>
+                {COMMUNITIES.map((c, i) => {
+                  const tc = c.tabColor;
+                  const isActive = sel === i;
+                  return (
+                    <button key={c.id} onClick={() => setSel(i)} style={{
+                      padding: "5px 9px", border: "none", borderRadius: "5px 5px 0 0",
+                      background: isActive ? tc.bg : "#F3F4F6",
+                      color: isActive ? tc.fg : "#6B7280",
+                      fontWeight: isActive ? 700 : 500, fontSize: 11, cursor: "pointer",
+                      borderBottom: isActive ? `3px solid ${tc.bg}` : "3px solid transparent",
+                      whiteSpace: "nowrap", transition: "all 0.12s",
+                      display: "flex", alignItems: "center", gap: 4,
+                    }}>
+                      <span style={{ background: isActive ? "rgba(255,255,255,0.25)" : "#D1D5DB", color: isActive ? tc.fg : "#374151", borderRadius: 10, fontSize: 9, fontWeight: 800, padding: "1px 5px", lineHeight: 1.4 }}>
+                        {c.rank !== null ? `#${c.rank}` : "★"}
+                      </span>
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>{/* end sticky */}
+
+        {/* ── COMMUNITY MODE CONTENT ── */}
+        {mode === "community" && (
+          <>
+            <CommunityMap selectedId={com.id} communities={COMMUNITIES} dirStyle={ds} onSelect={(id) => setSel(COMMUNITIES.findIndex(c => c.id === id))} />
+
+            <div style={{ background: ds.bg, padding: "10px 14px", color: ds.fg, fontSize: 12, lineHeight: 1.5, borderBottom: `1px solid ${BORDER}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 4 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, opacity: 0.7, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  {com.rank !== null ? `#${com.rank} match · ` : ""}{com.name} · {com.sub}{com.commute > 0 ? ` · ~${com.commute} min to West Bend` : ""}
+                </div>
+                <a href={com.zillowUrl} target="_blank" rel="noopener noreferrer" style={{ background: "rgba(255,255,255,0.18)", color: ds.fg, border: `1px solid rgba(255,255,255,0.35)`, borderRadius: 6, padding: "4px 9px", fontSize: 10, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  Realtor.com Listings →
+                </a>
+              </div>
+              {com.character}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "6px 12px", background: "#F8FAFC", border: `1px solid ${BORDER}`, borderTop: "none", fontSize: 10, color: "#6B7280" }}>
+              <span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Bar key:</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ display: "inline-block", width: 20, height: 5, borderRadius: 3, background: "#4ADE80" }} />
+                Close match
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ display: "inline-block", width: 20, height: 5, borderRadius: 3, background: "#FCD34D" }} />
+                Moderate match
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ display: "inline-block", width: 20, height: 5, borderRadius: 3, background: "#94A3B8" }} />
+                Lower match
+              </span>
+            </div>
+            {/* ── Community Photos ── */}
+            <div style={{ background: "white", border: `1px solid ${BORDER}`, borderTop: "none" }}>
+              <div style={{ background: "#111827", color: "white", padding: "5px 12px", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", position: "sticky", top: "var(--header-h, 130px)", zIndex: 500 }}>
+                Community Photos
+              </div>
+              <PhotoGallery com={com} />
+            </div>
+
+                        <div style={{ borderRadius: "0 0 8px 8px", overflow: "clip", border: `1px solid ${BORDER}`, borderTop: "none", background: "white" }}>
+              <SHead label="Population & Demographics" />
+              <RowM label="Population"   valMar={base.pop}     valCom={com.pop} />
+              <RowM label="Land Area"    valMar={base.area} valCom={com.area} />
+              <RowM label="Pop. Density" sub="lower = more rural" valMar={base.densityD} valCom={com.density.toLocaleString() + " / sq mi"} numC={com.density} numM={base.density} hib={false} />
+              <RowM label="Median Age"   valMar={base.medianAge}   valCom={com.medianAge + " yrs"} />
+              <RowM label="% White"      valMar={base.whiteD}      valCom={com.white + "%"} />
+              <RowM label="% Hispanic"   valMar={base.hispanicD}        valCom={com.hispanic + "%"} />
+              <RowM label="% Asian"      valMar={base.asianD}      valCom={com.asian + "%"} />
+              <RowM label="% Black"      valMar={base.blackD}        valCom={com.black + "%"} />
+
+              <SHead label="Income & Economy" />
+              <RowM label="Median HH Income"  valMar={base.incomeD} valCom={"$" + com.income.toLocaleString()}    numC={com.income}    numM={base.income}    hib={true} />
+              <RowM label="Per Capita Income" valMar={base.perCapitaD}  valCom={"$" + com.perCapita.toLocaleString()} numC={com.perCapita} numM={base.perCapita} hib={true} />
+              <RowM label="Poverty Rate" sub="lower = better" valMar={base.povertyD} valCom={com.poverty + "%"} numC={com.poverty} numM={base.poverty} hib={false} />
+
+              <SHead label="Housing" />
+              <RowM label="Median Home Value" valMar={base.homeValueD} valCom={"$" + com.homeValue.toLocaleString()} numC={com.homeValue} numM={base.homeValue} hib={true} />
+              <RowM label="Homeownership"     valMar={base.ownershipD}     valCom={com.ownership + "%"} numC={com.ownership} numM={base.ownership} hib={true} />
+              <RowM label="Median Rent"       valMar={base.rentD} valCom={"$" + com.rent.toLocaleString() + "/mo"} />
+              <RowM label="COL Index" sub="U.S. avg = 100"  valMar={base.colD} valCom={String(com.col)} />
+
+              <SHead label="Cost of Living" />
+              <RowM label="Groceries vs. Avg"    valMar={base.groceryD}      valCom="+9% vs natl"  note="WI state avg; same across all 8" />
+              <RowM label="Utilities vs. Avg"    valMar={base.utilitiesD} valCom="–6 to –7%"   note="WI utilities notably cheaper" />
+              <RowM label="Monthly Utility Bill" valMar={base.utilBillD}     valCom="~$195–210" />
+              <RowM label="Gas Price"            valMar={base.gasD}    valCom="~$3.15/gal" />
+              <RowM label="Healthcare vs. Avg"   valMar={base.healthcareD}  valCom="~–1% (WI)" />
+              <RowM label="Transportation"       valMar={base.transportD} valCom="+1–2% (WI)" />
+              <RowM label="Gallon of Milk"       valMar={base.milkD}    valCom="~$4.10" note="WI is dairy country" />
+
+              <SHead label="Climate" />
+              <RowM label="Jan High / Low"    valMar={base.janD} valCom="26°F / 13°F" />
+              <RowM label="July High / Low"   valMar={base.julD} valCom="82°F / 62°F" />
+              <RowM label="Annual Snowfall"   valMar={base.snowD}         valCom='45–50"' note="More snow than Marshall Twp" />
+              <RowM label="Annual Rainfall"   valMar={base.rainD}         valCom='32–35"' />
+              <RowM label="Sunny Days / Year" valMar={base.sunnyD}         valCom="~185–190" note="More sun than Pittsburgh area" />
+              <RowM label="Annual Avg Temp"   valMar={base.avgTempD}        valCom="~49°F" />
+              <RowM label="Climate Type"      valMar="Humid Continental" valCom="Humid Continental" />
+              {com.id === "kohler" && <RowM label="Lake Michigan Effect" valMar="n/a" valCom="Slight temp moderation near lake" />}
+
+              <SHead label="Natural Hazards & Extreme Weather" />
+              <RowM label="Tornadoes / Year" sub="local area average"
+                valMar={base.tornadoAvgD} valCom="~1–3 / yr (SE WI 4-county area) · WI avg 23 / yr statewide" />
+              <RowM label="Tornado Intensity" sub="typical range"
+                valMar={base.tornadoIntensityD} valCom="EF0–EF1 typical · EF2–EF3 rare · EF4 recorded (Waukesha Co. 1984)" />
+              <RowM label="Strongest on Record" sub="local area"
+                valMar={base.tornadoRecordD} valCom="F4 · Waukesha Co. · 1984 · 1 death · 14 injuries" />
+              <RowM label="Notable Tornado Note"
+                valMar={base.tornadoNoteD} valCom="Lake Michigan boundary effect: Ozaukee Co. communities historically safest in SE WI · lake cuts off long-track tornadoes" />
+              <RowM label="Major Snow Events / Season" sub="6″+ snowfall"
+                valMar={base.blizzardFreqD} valCom="2–4 major snow events / season (6″+)" />
+              <RowM label="Record Single Snowstorm"
+                valMar={base.blizzardRecordD} valCom="Groundhog Day Blizzard · Feb 2, 2011 · 24″+ Kenosha · Racine · Walworth · SE WI" />
+              <RowM label="Record 24-hr Snowfall"
+                valMar={base.snowRecord24D} valCom="~18–24″ possible in SE WI · statewide record 26″ (Iron Co.)" />
+              <RowM label="Ice Storm Events / Year"
+                valMar={base.iceStormD} valCom="2–4 events / year" />
+              <RowM label="Severe Thunderstorm Days / Year"
+                valMar={base.severeStormDaysD} valCom="~40–50 days / year · ~200 wind-damage reports / yr statewide · baseball-size hail recorded 2025" />
+              <RowM label="Flood Risk & History"
+                valMar={base.floodRiskD} valCom="Moderate · Milwaukee River corridor flooding (West Bend, Cedarburg, Grafton, Mequon)" />
+              <RowM label="Notable Flood Event"
+                valMar={base.floodRecordD} valCom="Aug 9–10, 2025 · Milwaukee NW side: 14.55″ in 24 hrs · new state 24-hr precipitation record" />
+              <RowM label="Record Low Temperature"
+                valMar={base.recordLowD} valCom="–26°F Milwaukee · Jan 19, 1982 · statewide record –55°F (Couderay, Jan 1996)" />
+              <RowM label="Polar Vortex / Extreme Cold"
+                valMar={base.polarVortexD} valCom="Moderate–High · Jan 2019 polar vortex: –30°F to –60°F wind chills statewide; SE WI –20°F to –40°F" />
+              <RowM label="Earthquake Risk"
+                valMar={base.earthquakeD} valCom="Negligible · no significant seismic history in Wisconsin" />
+              <RowM label="Other Notable Hazards"
+                valMar={base.otherHazardsD} valCom="Derechos (Jul 2011, Jul 2019) · Lake Michigan storm surge & record high water levels (2019) · extreme cold warnings issued Jan 2025 for all WI counties (wind chills –45°F)" />
+
+
+              <SHead label="Crime (2024 FBI UCR)" />
+              <RowM label="Overall Crime Rate" sub="per 1,000" valMar={base.crimeD} valCom={com.crimeTotal + " / 1K"} numC={com.crimeTotal} numM={base.crimeTotal} hib={false} />
+              <RowM label="Violent / 100K"     valMar={base.violentD}  valCom={com.violent + " / 100K"}  numC={com.violent + 1} numM={base.violent + 1} hib={false} />
+              <RowM label="Property / 100K"    valMar={base.propertyD} valCom={com.property + " / 100K"} numC={com.property}    numM={base.property}    hib={false} />
+              <RowM label="Context"            valMar={base.crimeCtxD} valCom={com.crimeVsNatl} />
+              <RowM label="WI State Avg (ref)" valMar="n/a" valCom="Violent: 279/100K · Property: 1,154/100K" />
+
+              <SHead label="Schools" />
+              <RowM label="School District" valMar={base.schoolDistrictD} valCom={com.schoolDistrict} />
+              <RowM label="Grade / Rating"  valMar={base.schoolGradeD}           valCom={com.schoolGrade} />
+              <RowM label="Ranking / Note"  valMar={base.schoolNoteD}   valCom={com.schoolNote} />
+
+              <SHead label="Recreation & Outdoors" />
+              <BulletRow title="Community Highlights" items={com.recBullets} />
+              <div style={{ background: "#F8FAFC", padding: "10px 12px", borderTop: `1px solid ${BORDER}` }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>Shared Regional Recreation</div>
+                {["Kettle Moraine State Forest (N & S units) — hiking, biking, XC skiing, kayaking, camping","Ice Age National Scenic Trail — 1,000 mi across WI, multiple access points within 15 min","Milwaukee metro (25–35 min S) — Bucks, Brewers, museums, Summerfest, MKE airport","Lake Michigan — beaches, sailing, fishing, kayaking (Port Washington, Sheboygan, Milwaukee)","Snowmobile & ATV trail networks throughout Washington / Ozaukee / Sheboygan counties"].map((item, i) => (
+                  <div key={i} style={{ fontSize: 11, color: "#374151", marginBottom: 2, display: "flex", gap: 5 }}>
+                    <span style={{ color: "#9CA3AF", flexShrink: 0 }}>→</span><span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ background: "#FFFBEB", border: `1px solid #FCD34D`, borderRadius: 8, padding: "10px 14px", marginTop: 10, fontSize: 11, color: "#374151", lineHeight: 1.5 }}>
+              <strong>COL note:</strong> Groceries, utilities, gas, healthcare, and transportation are nearly identical across all 8 WI communities. The primary cost driver between them is housing. Wisconsin utilities run significantly below Pennsylvania — a real monthly saving vs. Marshall Township.
+            </div>
+          </>
+        )}
+
+        {/* ── CITY MODE CONTENT ── */}
+        {mode === "cities" && <CityComparison />}
+
+        <p style={{ textAlign: "center", fontSize: 10, color: "#9CA3AF", marginTop: 10, lineHeight: 1.5 }}>
+          ACS 2024 · FBI UCR 2024 · NOAA NCEI 1991–2020 · Niche 2026 · C2ER COL · NeighborhoodScout · Data USA<br/>
+          Map = approximate projection · est. = estimated · ▲ = higher value wins
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
